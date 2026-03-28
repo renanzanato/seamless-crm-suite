@@ -4,14 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   CreditCard,
-  Users,
-  MessageSquare,
-  Package,
-  FileText,
   BarChart3,
-  Zap,
   Settings,
-  Shield,
   HelpCircle,
   ChevronLeft,
   ChevronRight,
@@ -19,24 +13,15 @@ import {
   Triangle,
 } from "lucide-react";
 
-const generalItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Payment", url: "/payment", icon: CreditCard },
-  { title: "Customers", url: "/customers", icon: Users },
-  { title: "Message", url: "/message", icon: MessageSquare, badge: 8 },
-];
-
-const toolsItems = [
-  { title: "Product", url: "/product", icon: Package },
-  { title: "Invoice", url: "/invoice", icon: FileText },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Automation", url: "/automation", icon: Zap, betaBadge: true },
+const mainItems = [
+  { title: "Visão Geral", url: "/", icon: LayoutDashboard },
+  { title: "Marketing", url: "/marketing", icon: BarChart3 },
+  { title: "Vendas", url: "/vendas", icon: CreditCard },
 ];
 
 const supportItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Security", url: "/security", icon: Shield },
-  { title: "Help", url: "/help", icon: HelpCircle },
+  { title: "Configurações", url: "/settings", icon: Settings },
+  { title: "Ajuda", url: "/help", icon: HelpCircle },
 ];
 
 export function AppSidebar() {
@@ -45,7 +30,7 @@ export function AppSidebar() {
 
   const isActive = (url: string) => location.pathname === url;
 
-  const renderItem = (item: typeof generalItems[0] & { badge?: number; betaBadge?: boolean }) => (
+  const renderItem = (item: typeof mainItems[0] & { badge?: number; betaBadge?: boolean }) => (
     <Link
       key={item.title}
       to={item.url}
@@ -116,27 +101,13 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-6">
         <div>
-          {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              General
-            </p>
-          )}
-          <div className="space-y-0.5">{generalItems.map(renderItem)}</div>
+          <div className="space-y-0.5">{mainItems.map(renderItem)}</div>
         </div>
 
         <div>
           {!collapsed && (
             <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              Tools
-            </p>
-          )}
-          <div className="space-y-0.5">{toolsItems.map(renderItem)}</div>
-        </div>
-
-        <div>
-          {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              Support
+              Suporte
             </p>
           )}
           <div className="space-y-0.5">{supportItems.map(renderItem)}</div>
