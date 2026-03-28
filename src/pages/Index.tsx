@@ -58,10 +58,18 @@ const Index = () => {
           Unit Economics
         </h2>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard title="CAC" value="1.850" change={-12.3} icon={Banknote} prefix="R$ " delay={0.4} />
-        <StatCard title="ROI Pipa" value="14,2x" change={22.5} icon={TrendingUp} delay={0.45} />
+        <StatCard title="ROI PIPA" value="14,2x" change={22.5} icon={TrendingUp} delay={0.45} />
         <StatCard title="Custo por Visita" value="185" change={-8.7} icon={Eye} prefix="R$ " delay={0.5} />
+        <StatCard title="VGV Total" value="103M" change={0} icon={Building2} prefix="R$ " delay={0.55} />
+        <StatCard title="Mídia / Receita" value="8,4%" change={-5.1} icon={PiggyBank} delay={0.6} />
+      </div>
+
+      {/* VGV + Orçado vs Realizado */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <VGVProgress />
+        <BudgetComparison />
       </div>
 
       {/* Bottom Row */}
