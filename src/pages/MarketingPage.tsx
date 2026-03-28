@@ -125,32 +125,34 @@ export default function MarketingPage() {
           </h3>
           <div className="flex flex-col items-center gap-0">
             {funnelData.map((step, i) => {
-              const widthPct = Math.max(40, 100 - i * 22);
+              const widthPct = Math.max(30, 100 - i * 12);
+              const colors = ["#FF8A00", "#E07800", "#CC6E00", "#B06000", "#8A8A8A", "#707070"];
               return (
                 <motion.div
                   key={step.etapa}
                   initial={{ opacity: 0, scaleX: 0.5 }}
                   animate={{ opacity: 1, scaleX: 1 }}
-                  transition={{ delay: 0.4 + i * 0.15, duration: 0.4 }}
+                  transition={{ delay: 0.4 + i * 0.12, duration: 0.4 }}
                   className="flex flex-col items-center w-full"
                 >
                   <div
-                    className="rounded-lg py-4 px-4 text-center"
+                    className="rounded-lg py-3 px-4 text-center"
                     style={{
                       width: `${widthPct}%`,
-                      background: i === 0 ? "#FF8A00" : i === 1 ? "#CC6E00" : "#A0A0A0",
+                      background: colors[i] || "#666",
                     }}
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">{step.etapa}</p>
-                    <p className="text-2xl font-bold text-white">{step.valor.toLocaleString("pt-BR")}</p>
+                    {step.sub && <p className="text-[9px] text-white/50">{step.sub}</p>}
+                    <p className="text-xl font-bold text-white">{step.valor.toLocaleString("pt-BR")}</p>
                     <p className="text-[10px] text-white/70">{step.pct} dos Leads</p>
                   </div>
                   {step.convPct && (
-                    <div className="flex items-center gap-1.5 my-3">
-                      <svg width="12" height="18" viewBox="0 0 12 18" className="text-primary shrink-0">
-                        <path d="M6 0 L6 14 M2 10 L6 16 L10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <div className="flex items-center gap-1.5 my-2">
+                      <svg width="12" height="16" viewBox="0 0 12 16" className="text-primary shrink-0">
+                        <path d="M6 0 L6 12 M2 8 L6 14 L10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      <p className="text-[11px] text-muted-foreground">{step.convPct}</p>
+                      <p className="text-[10px] text-muted-foreground">{step.convPct}</p>
                     </div>
                   )}
                 </motion.div>
