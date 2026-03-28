@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Filter, ArrowUpDown, MoreHorizontal } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 const data = [
   { month: "Oct", Direct: 900, Referral: 700, Organic: 500, Social: 500, Other: 388 },
@@ -16,7 +17,7 @@ const data = [
   { month: "Dec", Direct: 1200, Referral: 1000, Organic: 800, Social: 600, Other: 406 },
 ];
 
-const COLORS = {
+const darkColors = {
   Direct: "#FF8A00",
   Referral: "#FFA940",
   Organic: "#CC6E00",
@@ -24,7 +25,23 @@ const COLORS = {
   Other: "#2A2A2A",
 };
 
+const lightColors = {
+  Direct: "#FF8A1E",
+  Referral: "#FFA940",
+  Organic: "#003D2B",
+  Social: "#A0A0A0",
+  Other: "#D1F2E6",
+};
+
 export function SalesOverviewChart() {
+  const { theme } = useTheme();
+  const COLORS = theme === "dark" ? darkColors : lightColors;
+  const gridColor = theme === "dark" ? "#2A2A2A" : "#E0DDD8";
+  const tickColor = theme === "dark" ? "#A0A0A0" : "#6B6B6B";
+  const tooltipBg = theme === "dark" ? "#1C1C1C" : "#FFFFFF";
+  const tooltipBorder = theme === "dark" ? "#2A2A2A" : "#E0DDD8";
+  const tooltipColor = theme === "dark" ? "#FFFFFF" : "#003D2B";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -57,16 +74,16 @@ export function SalesOverviewChart() {
 
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} barGap={2} barSize={28}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 16%)" vertical={false} />
-          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#A0A0A0" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: tickColor }} />
           <YAxis hide />
           <Tooltip
             contentStyle={{
-              background: "#1C1C1C",
-              border: "1px solid #2A2A2A",
+              background: tooltipBg,
+              border: `1px solid ${tooltipBorder}`,
               borderRadius: "8px",
               fontSize: "12px",
-              color: "#FFFFFF",
+              color: tooltipColor,
             }}
             formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
           />
