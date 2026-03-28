@@ -18,7 +18,7 @@ const mainItems = [
   { title: "Visão Geral", url: "/", icon: LayoutDashboard },
   { title: "Marketing", url: "/marketing", icon: Megaphone },
   { title: "Vendas", url: "/vendas", icon: HandCoins },
-  { title: "IA", url: "/ia", icon: Bot },
+  { title: "PIPA", url: "/ia", icon: Bot },
 ];
 
 const supportItems = [
