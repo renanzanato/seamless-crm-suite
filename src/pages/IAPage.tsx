@@ -90,7 +90,7 @@ export default function IAPage() {
     <DashboardLayout>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Inteligência Artificial</h1>
+        <h1 className="text-2xl font-bold text-foreground">PIPA — Inteligência Artificial</h1>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
             <Calendar className="h-4 w-4" />
@@ -105,14 +105,14 @@ export default function IAPage() {
       {/* ══════ PRÉ-VENDA ══════ */}
       <div className="mb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          🤖 Performance IA — Pré-Venda
+          🤖 Performance PIPA — Pré-Venda
         </h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Atendimentos pela IA" value="3.810" change={24.5} icon={Bot} delay={0} />
+        <StatCard title="Atendimentos pela PIPA" value="3.810" change={24.5} icon={Bot} delay={0} />
         <StatCard title="Tempo Médio de Resposta" value="1m 42s" change={-18.3} icon={Clock} delay={0.05} />
-        <StatCard title="Agendamentos pela IA" value="487" change={18.7} icon={CalendarCheck} delay={0.1} />
+        <StatCard title="Agendamentos pela PIPA" value="487" change={18.7} icon={CalendarCheck} delay={0.1} />
         <StatCard title="Objeções Mapeadas" value="417" change={12.3} icon={Search} delay={0.15} />
       </div>
 
@@ -125,7 +125,7 @@ export default function IAPage() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="chart-card"
         >
-          <h3 className="text-sm font-semibold text-foreground mb-4">Atendimentos IA por Semana</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Atendimentos PIPA por Semana</h3>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={weeklyAI}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -189,14 +189,14 @@ export default function IAPage() {
       {/* ══════ FOLLOW-UP & REATIVAÇÃO ══════ */}
       <div className="mb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          🔄 Performance IA — Follow-up & Reativação
+          🔄 Performance PIPA — Follow-up & Reativação
         </h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="Leads Reativados" value="165" change={32.0} icon={RefreshCw} delay={0.3} />
         <StatCard title="Follow-ups Enviados" value="2.440" change={15.6} icon={Send} delay={0.35} />
-        <StatCard title="Engajamento pela IA" value="34,8%" change={5.2} icon={MousePointerClick} delay={0.4} />
+        <StatCard title="Engajamento pela PIPA" value="34,8%" change={5.2} icon={MousePointerClick} delay={0.4} />
         <StatCard title="Conversões por Reativação" value="49" change={28.4} icon={TrendingUp} delay={0.45} />
       </div>
 
@@ -275,7 +275,7 @@ export default function IAPage() {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="chart-card"
         >
-          <h3 className="text-sm font-semibold text-foreground mb-4">Engajamento pela IA</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Engajamento pela PIPA</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -314,7 +314,7 @@ export default function IAPage() {
         </motion.div>
       </div>
 
-      {/* Influência da IA na Conversão */}
+      {/* Influência da PIPA na Conversão */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -323,7 +323,7 @@ export default function IAPage() {
       >
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Influência da IA na Conversão</h3>
+          <h3 className="text-sm font-semibold text-foreground">Influência da PIPA na Conversão</h3>
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <AreaChart data={aiInfluenceData}>
@@ -346,18 +346,18 @@ export default function IAPage() {
               iconSize={8}
               wrapperStyle={{ fontSize: "12px", color: tickColor }}
             />
-            <Area type="monotone" dataKey="comIA" name="Com IA" stroke="#FF8A00" fill={areaFill} strokeWidth={2} />
-            <Area type="monotone" dataKey="semIA" name="Sem IA" stroke="#A0A0A0" fill={areaFill2} strokeWidth={2} strokeDasharray="4 4" />
+            <Area type="monotone" dataKey="comIA" name="Com PIPA" stroke="#FF8A00" fill={areaFill} strokeWidth={2} />
+            <Area type="monotone" dataKey="semIA" name="Sem PIPA" stroke="#A0A0A0" fill={areaFill2} strokeWidth={2} strokeDasharray="4 4" />
           </AreaChart>
         </ResponsiveContainer>
         <div className="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
           <div>
             <span className="text-foreground font-semibold text-lg">4,2x</span>
-            <p>mais conversões com IA</p>
+            <p>mais conversões com PIPA</p>
           </div>
           <div>
             <span className="text-foreground font-semibold text-lg">78%</span>
-            <p>das vendas tiveram influência da IA</p>
+            <p>das vendas tiveram influência da PIPA</p>
           </div>
           <div>
             <span className="text-foreground font-semibold text-lg">-62%</span>
