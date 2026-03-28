@@ -41,15 +41,17 @@ const channelData = [
   { canal: "Google Ads", leads: 2450, color: "#FF8A00" },
   { canal: "Meta Ads", leads: 1890, color: "#FFA940" },
   { canal: "Orgânico", leads: 1120, color: "#CC6E00" },
-  { canal: "Indicação", leads: 780, color: "#A0A0A0" },
-  { canal: "Outros", leads: 287, color: "#4A4A4A" },
+  { canal: "Site", leads: 780, color: "#A0A0A0" },
+  { canal: "E-mail", leads: 520, color: "#4A4A4A" },
+  { canal: "SMS", leads: 340, color: "#6B6B6B" },
+  { canal: "Indicação", leads: 287, color: "#8B8B8B" },
 ];
 
 // Lead time entre etapas
 const leadTimeData = [
-  { de: "Fez Contato", para: "Consulta Agendada", media: "11,3 dias", mediana: "1,5 dias", min: "0,0", max: "316,6 dias", base: 371 },
-  { de: "Consulta Agendada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134,8 dias", base: 222 },
-  { de: "Fez Contato", para: "Comprou", media: "23,2 dias", mediana: "13,5 dias", min: "0,0", max: "280,6 dias", base: 226 },
+  { de: "Fez Contato", para: "Consulta Agendada", media: "11,3 dias", mediana: "1,5 dias", min: "0,0", max: "316,6 dias", base: 371, change: -8.2 },
+  { de: "Consulta Agendada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134,8 dias", base: 222, change: 3.1 },
+  { de: "Fez Contato", para: "Comprou", media: "23,2 dias", mediana: "13,5 dias", min: "0,0", max: "280,6 dias", base: 226, change: -5.4 },
 ];
 
 // Evolução mensal de leads
