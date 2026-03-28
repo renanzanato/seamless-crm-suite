@@ -51,7 +51,7 @@ export function SalesOverviewChart() {
     >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">📊 Visão de Vendas</span>
+          <span className="text-sm font-medium text-muted-foreground">Visão de Vendas</span>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary hover:text-primary transition-colors text-muted-foreground">

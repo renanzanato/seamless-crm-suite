@@ -51,6 +51,7 @@ export function SalesByChannel() {
               fontSize: "12px",
               color: tooltipColor,
             }}
+            labelStyle={{ color: tooltipColor }}
             formatter={(value: number, name: string) => {
               if (name === "vendas") return [`${value} vendas`, "Vendas"];
               return [`R$ ${(value / 1000).toFixed(0)}k`, "Receita"];
