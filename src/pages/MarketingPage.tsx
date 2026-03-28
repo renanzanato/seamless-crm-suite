@@ -127,7 +127,7 @@ export default function MarketingPage() {
           <span className="text-xs text-muted-foreground">Lead time entre etapas</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
           {/* Funil visual */}
           <div className="flex flex-col items-center">
             {funnelData.map((step, i) => {
