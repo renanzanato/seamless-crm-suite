@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
 import { ChevronDown } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 const data = [
   { day: "Sun", value: 2200 },
@@ -13,6 +14,11 @@ const data = [
 ];
 
 export function TotalSubscriberChart() {
+  const { theme } = useTheme();
+  const activeColor = theme === "dark" ? "#FF8A00" : "#FF8A1E";
+  const inactiveColor = theme === "dark" ? "rgba(255, 138, 0, 0.15)" : "rgba(255, 138, 30, 0.2)";
+  const tickColor = theme === "dark" ? "#A0A0A0" : "#6B6B6B";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -41,13 +47,13 @@ export function TotalSubscriberChart() {
             dataKey="day"
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 11, fill: "#A0A0A0" }}
+            tick={{ fontSize: 11, fill: tickColor }}
           />
           <Bar dataKey="value" radius={[4, 4, 4, 4]}>
             {data.map((entry, index) => (
               <Cell
                 key={index}
-                fill={entry.day === "Tue" ? "#FF8A00" : "rgba(255, 138, 0, 0.15)"}
+                fill={entry.day === "Tue" ? activeColor : inactiveColor}
               />
             ))}
           </Bar>
