@@ -10,7 +10,7 @@ const data = [
   { canal: "Indicação", vendas: 3, receita: 130000 },
 ];
 
-const darkBarColors = ["#FF8A00", "#FFA940", "#CC6E00", "#A0A0A0", "#2A2A2A"];
+const darkBarColors = ["#FF8A00", "#FFA940", "#CC6E00", "#A0A0A0", "#4A4A4A"];
 const lightBarColors = ["#FF8A1E", "#FFA940", "#003D2B", "#A0A0A0", "#D1F2E6"];
 
 export function SalesByChannel() {

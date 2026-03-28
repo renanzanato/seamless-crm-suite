@@ -42,7 +42,7 @@ const channelData = [
   { canal: "Meta Ads", leads: 1890, color: "#FFA940" },
   { canal: "Orgânico", leads: 1120, color: "#CC6E00" },
   { canal: "Indicação", leads: 780, color: "#A0A0A0" },
-  { canal: "Outros", leads: 287, color: "#2A2A2A" },
+  { canal: "Outros", leads: 287, color: "#4A4A4A" },
 ];
 
 // Lead time entre etapas
