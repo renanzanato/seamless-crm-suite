@@ -30,7 +30,7 @@ export function AppSidebar() {
 
   const isActive = (url: string) => location.pathname === url;
 
-  const renderItem = (item: typeof generalItems[0] & { badge?: number; betaBadge?: boolean }) => (
+  const renderItem = (item: typeof mainItems[0] & { badge?: number; betaBadge?: boolean }) => (
     <Link
       key={item.title}
       to={item.url}
