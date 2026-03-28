@@ -72,10 +72,6 @@ const Index = () => {
         <BudgetComparison />
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SalesDistribution />
-      </div>
     </DashboardLayout>
   );
 };
