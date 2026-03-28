@@ -5,7 +5,7 @@ import { TotalSubscriberChart } from "@/components/dashboard/TotalSubscriberChar
 import { SalesDistribution } from "@/components/dashboard/SalesDistribution";
 import { FunnelOverview } from "@/components/dashboard/FunnelOverview";
 import { SalesByChannel } from "@/components/dashboard/SalesByChannel";
-import { Users, ShoppingCart, DollarSign, Target, Calendar, Filter, Download, ChevronDown } from "lucide-react";
+import { Users, ShoppingCart, DollarSign, Target, Calendar, Filter, Download, ChevronDown, TrendingUp, Banknote, Eye } from "lucide-react";
 
 const Index = () => {
   return (
@@ -48,6 +48,18 @@ const Index = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <SalesOverviewChart />
         <TotalSubscriberChart />
+      </div>
+
+      {/* Unit Economics */}
+      <div className="mb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+          💰 Unit Economics
+        </h2>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <StatCard title="CAC" value="1.850" change={-12.3} icon={Banknote} prefix="R$ " delay={0.4} />
+        <StatCard title="ROI Pipa" value="14,2x" change={22.5} icon={TrendingUp} delay={0.45} />
+        <StatCard title="Custo por Visita" value="185" change={-8.7} icon={Eye} prefix="R$ " delay={0.5} />
       </div>
 
       {/* Bottom Row */}

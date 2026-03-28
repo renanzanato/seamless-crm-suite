@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Megaphone,
   HandCoins,
+  Bot,
   Settings,
   HelpCircle,
   ChevronLeft,
@@ -17,6 +18,7 @@ const mainItems = [
   { title: "Visão Geral", url: "/", icon: LayoutDashboard },
   { title: "Marketing", url: "/marketing", icon: Megaphone },
   { title: "Vendas", url: "/vendas", icon: HandCoins },
+  { title: "IA", url: "/ia", icon: Bot },
 ];
 
 const supportItems = [
