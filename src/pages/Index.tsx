@@ -5,7 +5,7 @@ import { TotalSubscriberChart } from "@/components/dashboard/TotalSubscriberChar
 import { SalesDistribution } from "@/components/dashboard/SalesDistribution";
 import { FunnelOverview } from "@/components/dashboard/FunnelOverview";
 import { SalesByChannel } from "@/components/dashboard/SalesByChannel";
-import { Users, ShoppingCart, DollarSign, Target, Calendar, Filter, Download, ChevronDown } from "lucide-react";
+import { Users, ShoppingCart, DollarSign, Target, Calendar, Filter, Download, ChevronDown, TrendingUp, Banknote, Eye } from "lucide-react";
 
 const Index = () => {
   return (
