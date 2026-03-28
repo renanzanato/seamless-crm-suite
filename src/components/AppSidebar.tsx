@@ -3,8 +3,8 @@ import { useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
-  CreditCard,
-  BarChart3,
+  Megaphone,
+  HandCoins,
   Settings,
   HelpCircle,
   ChevronLeft,
@@ -15,8 +15,8 @@ import {
 
 const mainItems = [
   { title: "Visão Geral", url: "/", icon: LayoutDashboard },
-  { title: "Marketing", url: "/marketing", icon: BarChart3 },
-  { title: "Vendas", url: "/vendas", icon: CreditCard },
+  { title: "Marketing", url: "/marketing", icon: Megaphone },
+  { title: "Vendas", url: "/vendas", icon: HandCoins },
 ];
 
 const supportItems = [
@@ -30,7 +30,7 @@ export function AppSidebar() {
 
   const isActive = (url: string) => location.pathname === url;
 
-  const renderItem = (item: typeof mainItems[0] & { badge?: number; betaBadge?: boolean }) => (
+  const renderItem = (item: typeof mainItems[0]) => (
     <Link
       key={item.title}
       to={item.url}
@@ -49,16 +49,6 @@ export function AppSidebar() {
           </motion.span>
         )}
       </AnimatePresence>
-      {!collapsed && item.badge && (
-        <span className="ml-auto text-xs bg-primary/20 text-primary rounded-full px-2 py-0.5 font-semibold">
-          {item.badge}
-        </span>
-      )}
-      {!collapsed && item.betaBadge && (
-        <span className="pipa-badge ml-auto text-[10px]">
-          Beta
-        </span>
-      )}
     </Link>
   );
 
@@ -125,7 +115,7 @@ export function AppSidebar() {
             <Triangle className="h-4 w-4 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">Team</p>
+            <p className="text-xs text-muted-foreground">Equipe</p>
             <p className="text-sm font-semibold truncate text-foreground">Marketing</p>
           </div>
           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
