@@ -101,27 +101,13 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-6">
         <div>
-          {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              General
-            </p>
-          )}
-          <div className="space-y-0.5">{generalItems.map(renderItem)}</div>
+          <div className="space-y-0.5">{mainItems.map(renderItem)}</div>
         </div>
 
         <div>
           {!collapsed && (
             <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              Tools
-            </p>
-          )}
-          <div className="space-y-0.5">{toolsItems.map(renderItem)}</div>
-        </div>
-
-        <div>
-          {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
-              Support
+              Suporte
             </p>
           )}
           <div className="space-y-0.5">{supportItems.map(renderItem)}</div>

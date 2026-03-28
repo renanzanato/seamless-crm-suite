@@ -17,15 +17,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/payment" element={<PlaceholderPage />} />
-          <Route path="/customers" element={<PlaceholderPage />} />
-          <Route path="/message" element={<PlaceholderPage />} />
-          <Route path="/product" element={<PlaceholderPage />} />
-          <Route path="/invoice" element={<PlaceholderPage />} />
-          <Route path="/analytics" element={<PlaceholderPage />} />
-          <Route path="/automation" element={<PlaceholderPage />} />
+          <Route path="/marketing" element={<PlaceholderPage />} />
+          <Route path="/vendas" element={<PlaceholderPage />} />
           <Route path="/settings" element={<PlaceholderPage />} />
-          <Route path="/security" element={<PlaceholderPage />} />
           <Route path="/help" element={<PlaceholderPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
