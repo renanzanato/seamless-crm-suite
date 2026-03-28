@@ -19,24 +19,15 @@ import {
   Triangle,
 } from "lucide-react";
 
-const generalItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Payment", url: "/payment", icon: CreditCard },
-  { title: "Customers", url: "/customers", icon: Users },
-  { title: "Message", url: "/message", icon: MessageSquare, badge: 8 },
-];
-
-const toolsItems = [
-  { title: "Product", url: "/product", icon: Package },
-  { title: "Invoice", url: "/invoice", icon: FileText },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Automation", url: "/automation", icon: Zap, betaBadge: true },
+const mainItems = [
+  { title: "Visão Geral", url: "/", icon: LayoutDashboard },
+  { title: "Marketing", url: "/marketing", icon: BarChart3 },
+  { title: "Vendas", url: "/vendas", icon: CreditCard },
 ];
 
 const supportItems = [
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Security", url: "/security", icon: Shield },
-  { title: "Help", url: "/help", icon: HelpCircle },
+  { title: "Configurações", url: "/settings", icon: Settings },
+  { title: "Ajuda", url: "/help", icon: HelpCircle },
 ];
 
 export function AppSidebar() {
