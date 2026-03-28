@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SalesOverviewChart } from "@/components/dashboard/SalesOverviewChart";
 import { TotalSubscriberChart } from "@/components/dashboard/TotalSubscriberChart";
-import { SalesDistribution } from "@/components/dashboard/SalesDistribution";
+// removed SalesDistribution
 import { FunnelOverview } from "@/components/dashboard/FunnelOverview";
 import { SalesByChannel } from "@/components/dashboard/SalesByChannel";
 import { VGVProgress } from "@/components/dashboard/VGVProgress";
@@ -72,10 +72,6 @@ const Index = () => {
         <BudgetComparison />
       </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SalesDistribution />
-      </div>
     </DashboardLayout>
   );
 };
