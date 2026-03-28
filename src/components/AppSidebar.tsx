@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  Triangle,
 } from "lucide-react";
 
 const generalItems = [
@@ -64,12 +65,12 @@ export function AppSidebar() {
         )}
       </AnimatePresence>
       {!collapsed && item.badge && (
-        <span className="ml-auto text-xs bg-primary/20 text-primary-foreground rounded-full px-2 py-0.5">
+        <span className="ml-auto text-xs bg-primary/20 text-primary rounded-full px-2 py-0.5 font-semibold">
           {item.badge}
         </span>
       )}
       {!collapsed && item.betaBadge && (
-        <span className="ml-auto text-[10px] font-bold uppercase tracking-wider bg-accent/20 text-accent rounded-full px-2 py-0.5">
+        <span className="pipa-badge ml-auto text-[10px]">
           Beta
         </span>
       )}
@@ -80,8 +81,7 @@ export function AppSidebar() {
     <motion.aside
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen sticky top-0 flex flex-col shrink-0 overflow-hidden"
-      style={{ background: "hsl(var(--sidebar-bg))" }}
+      className="h-screen sticky top-0 flex flex-col shrink-0 overflow-hidden bg-sidebar"
     >
       {/* Logo */}
       <div className="flex items-center justify-between px-4 h-16">
@@ -92,22 +92,22 @@ export function AppSidebar() {
             className="flex items-center gap-2"
           >
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary-foreground" />
+              <Triangle className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold" style={{ color: "hsl(var(--sidebar-active))" }}>
-              Nexus
-            </span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold text-primary">PIPA</span>
+              <span className="text-sm font-medium italic text-primary/80">Driven</span>
+            </div>
           </motion.div>
         )}
         {collapsed && (
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
-            <Zap className="h-4 w-4 text-primary-foreground" />
+            <Triangle className="h-4 w-4 text-primary-foreground" />
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1 rounded-md hover:bg-sidebar-accent transition-colors"
-          style={{ color: "hsl(var(--sidebar-fg))" }}
+          className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -117,7 +117,7 @@ export function AppSidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-6">
         <div>
           {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: "hsl(var(--sidebar-fg) / 0.5)" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
               General
             </p>
           )}
@@ -126,7 +126,7 @@ export function AppSidebar() {
 
         <div>
           {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: "hsl(var(--sidebar-fg) / 0.5)" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
               Tools
             </p>
           )}
@@ -135,7 +135,7 @@ export function AppSidebar() {
 
         <div>
           {!collapsed && (
-            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2" style={{ color: "hsl(var(--sidebar-fg) / 0.5)" }}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
               Support
             </p>
           )}
@@ -148,17 +148,16 @@ export function AppSidebar() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="p-3 mx-3 mb-3 rounded-lg flex items-center gap-3 cursor-pointer"
-          style={{ background: "hsl(var(--sidebar-hover))" }}
+          className="p-3 mx-3 mb-3 rounded-lg flex items-center gap-3 cursor-pointer bg-muted border border-border"
         >
-          <div className="h-9 w-9 rounded-lg bg-primary/30 flex items-center justify-center">
-            <Zap className="h-4 w-4 text-primary" />
+          <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Triangle className="h-4 w-4 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs" style={{ color: "hsl(var(--sidebar-fg))" }}>Team</p>
-            <p className="text-sm font-semibold truncate" style={{ color: "hsl(var(--sidebar-active))" }}>Marketing</p>
+            <p className="text-xs text-muted-foreground">Team</p>
+            <p className="text-sm font-semibold truncate text-foreground">Marketing</p>
           </div>
-          <ChevronDown className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--sidebar-fg))" }} />
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </motion.div>
       )}
     </motion.aside>

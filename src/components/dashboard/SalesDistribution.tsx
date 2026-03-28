@@ -3,9 +3,9 @@ import { ChevronDown } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const data = [
-  { name: "Website", value: 374.82, color: "hsl(168, 70%, 48%)" },
-  { name: "Mobile App", value: 241.60, color: "hsl(252, 56%, 57%)" },
-  { name: "Other", value: 213.42, color: "hsl(220, 70%, 55%)" },
+  { name: "Website", value: 374.82, color: "#FF8A00" },
+  { name: "Mobile App", value: 241.60, color: "#FFA940" },
+  { name: "Other", value: 213.42, color: "#A0A0A0" },
 ];
 
 export function SalesDistribution() {
@@ -18,7 +18,7 @@ export function SalesDistribution() {
     >
       <div className="flex items-center justify-between mb-4">
         <span className="text-sm font-semibold text-foreground">Sales Distribution</span>
-        <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded-lg px-2.5 py-1 hover:bg-secondary transition-colors">
+        <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded-lg px-2.5 py-1 hover:bg-secondary hover:text-primary transition-colors">
           Monthly <ChevronDown className="h-3.5 w-3.5" />
         </button>
       </div>

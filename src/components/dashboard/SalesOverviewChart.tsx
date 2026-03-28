@@ -6,23 +6,22 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import { Filter, ArrowUpDown, MoreHorizontal } from "lucide-react";
 
 const data = [
-  { month: "Oct", China: 900, UE: 700, USA: 500, Canada: 500, Other: 388 },
-  { month: "Nov", China: 600, UE: 500, USA: 365, Canada: 200, Other: 100 },
-  { month: "Dec", China: 1200, UE: 1000, USA: 800, Canada: 600, Other: 406 },
+  { month: "Oct", Direct: 900, Referral: 700, Organic: 500, Social: 500, Other: 388 },
+  { month: "Nov", Direct: 600, Referral: 500, Organic: 365, Social: 200, Other: 100 },
+  { month: "Dec", Direct: 1200, Referral: 1000, Organic: 800, Social: 600, Other: 406 },
 ];
 
 const COLORS = {
-  China: "hsl(240, 24%, 15%)",
-  UE: "hsl(220, 70%, 55%)",
-  USA: "hsl(168, 70%, 48%)",
-  Canada: "hsl(252, 56%, 57%)",
-  Other: "hsl(252, 56%, 77%)",
+  Direct: "#FF8A00",
+  Referral: "#FFA940",
+  Organic: "#CC6E00",
+  Social: "#A0A0A0",
+  Other: "#2A2A2A",
 };
 
 export function SalesOverviewChart() {
@@ -38,13 +37,13 @@ export function SalesOverviewChart() {
           <span className="text-sm font-medium text-muted-foreground">📊 Sales Overview</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary hover:text-primary transition-colors text-muted-foreground">
             <Filter className="h-3.5 w-3.5" /> Filter
           </button>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
+          <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary hover:text-primary transition-colors text-muted-foreground">
             <ArrowUpDown className="h-3.5 w-3.5" /> Sort
           </button>
-          <button className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+          <button className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
             <MoreHorizontal className="h-4 w-4" />
           </button>
         </div>
@@ -58,22 +57,23 @@ export function SalesOverviewChart() {
 
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={data} barGap={2} barSize={28}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" vertical={false} />
-          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(220, 10%, 50%)" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0, 0%, 16%)" vertical={false} />
+          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#A0A0A0" }} />
           <YAxis hide />
           <Tooltip
             contentStyle={{
-              background: "hsl(0, 0%, 100%)",
-              border: "1px solid hsl(220, 13%, 91%)",
+              background: "#1C1C1C",
+              border: "1px solid #2A2A2A",
               borderRadius: "8px",
               fontSize: "12px",
+              color: "#FFFFFF",
             }}
             formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
           />
-          <Bar dataKey="China" stackId="a" fill={COLORS.China} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="UE" stackId="a" fill={COLORS.UE} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="USA" stackId="a" fill={COLORS.USA} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Canada" stackId="a" fill={COLORS.Canada} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Direct" stackId="a" fill={COLORS.Direct} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Referral" stackId="a" fill={COLORS.Referral} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Organic" stackId="a" fill={COLORS.Organic} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Social" stackId="a" fill={COLORS.Social} radius={[0, 0, 0, 0]} />
           <Bar dataKey="Other" stackId="a" fill={COLORS.Other} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
