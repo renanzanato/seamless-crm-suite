@@ -22,7 +22,7 @@ const darkColors: Record<string, string> = {
   Indicação: "#FFA940",
   Orgânico: "#CC6E00",
   Social: "#A0A0A0",
-  Outros: "#2A2A2A",
+  Outros: "#4A4A4A",
 };
 
 const lightColors: Record<string, string> = {
