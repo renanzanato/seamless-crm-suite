@@ -1,4 +1,5 @@
 import { Search, Calendar, Bell, PlusCircle } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function TopBar() {
   return (
@@ -19,6 +20,7 @@ export function TopBar() {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
+        <ThemeToggle />
         <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
           <Calendar className="h-5 w-5" />
         </button>

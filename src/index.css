@@ -5,8 +5,77 @@
 @tailwind utilities;
 
 @layer base {
+  /* PIPA Light Mode (default) */
   :root {
-    /* PIPA Dark Mode (default) */
+    --background: 45 11% 95%;
+    --foreground: 160 100% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 160 100% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 100% 12%;
+
+    --primary: 32 100% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 152 50% 88%;
+    --secondary-foreground: 160 100% 12%;
+
+    --muted: 45 8% 90%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 32 100% 56%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 45 8% 85%;
+    --input: 45 8% 85%;
+    --ring: 32 100% 56%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar - dark even in light mode for contrast */
+    --sidebar-bg: 160 100% 8%;
+    --sidebar-fg: 0 0% 63%;
+    --sidebar-active: 0 0% 100%;
+    --sidebar-hover: 160 60% 12%;
+    --sidebar-accent: 32 100% 56%;
+
+    --sidebar-background: 160 100% 8%;
+    --sidebar-foreground: 0 0% 63%;
+    --sidebar-primary: 32 100% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent-bg: 160 60% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 160 40% 14%;
+    --sidebar-ring: 32 100% 56%;
+
+    /* Chart colors */
+    --chart-orange: 32 100% 56%;
+    --chart-orange-light: 36 100% 62%;
+    --chart-green: 160 100% 12%;
+    --chart-green-water: 152 50% 88%;
+    --chart-gray: 0 0% 63%;
+
+    /* Status */
+    --success: 160 60% 35%;
+    --success-foreground: 160 100% 12%;
+    --warning: 32 100% 56%;
+    --warning-foreground: 32 100% 35%;
+
+    /* PIPA specific */
+    --pipa-orange: 32 100% 56%;
+    --pipa-orange-light: 36 100% 62%;
+    --pipa-orange-dark: 24 100% 45%;
+    --pipa-surface: 0 0% 100%;
+    --pipa-border: 45 8% 85%;
+  }
+
+  /* PIPA Dark Mode */
+  .dark {
     --background: 0 0% 8%;
     --foreground: 0 0% 100%;
 
@@ -35,8 +104,6 @@
     --input: 0 0% 16%;
     --ring: 32 100% 50%;
 
-    --radius: 0.75rem;
-
     /* Sidebar */
     --sidebar-bg: 0 0% 6%;
     --sidebar-fg: 0 0% 63%;
@@ -53,9 +120,9 @@
     --sidebar-border: 0 0% 14%;
     --sidebar-ring: 32 100% 50%;
 
-    /* Chart colors - PIPA palette */
+    /* Chart colors */
     --chart-orange: 32 100% 50%;
-    --chart-orange-light: 32 100% 62%;
+    --chart-orange-light: 36 100% 62%;
     --chart-green: 152 100% 12%;
     --chart-green-water: 152 50% 88%;
     --chart-gray: 0 0% 63%;
@@ -141,7 +208,7 @@
   }
 
   .pipa-dot-bg {
-    background-image: radial-gradient(circle, hsl(0 0% 16%) 1px, transparent 1px);
+    background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
     background-size: 20px 20px;
   }
 }
