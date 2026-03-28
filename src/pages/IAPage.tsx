@@ -275,7 +275,7 @@ export default function IAPage() {
           transition={{ duration: 0.5, delay: 0.6 }}
           className="chart-card"
         >
-          <h3 className="text-sm font-semibold text-foreground mb-4">Engajamento pela IA</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Engajamento pela PIPA</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
