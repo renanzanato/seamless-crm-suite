@@ -346,8 +346,8 @@ export default function IAPage() {
               iconSize={8}
               wrapperStyle={{ fontSize: "12px", color: tickColor }}
             />
-            <Area type="monotone" dataKey="comIA" name="Com IA" stroke="#FF8A00" fill={areaFill} strokeWidth={2} />
-            <Area type="monotone" dataKey="semIA" name="Sem IA" stroke="#A0A0A0" fill={areaFill2} strokeWidth={2} strokeDasharray="4 4" />
+            <Area type="monotone" dataKey="comIA" name="Com PIPA" stroke="#FF8A00" fill={areaFill} strokeWidth={2} />
+            <Area type="monotone" dataKey="semIA" name="Sem PIPA" stroke="#A0A0A0" fill={areaFill2} strokeWidth={2} strokeDasharray="4 4" />
           </AreaChart>
         </ResponsiveContainer>
         <div className="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
