@@ -95,16 +95,16 @@ export default function MarketingPage() {
 
       {/* KPIs Principais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Fez Contato" value="6.527" change={12.4} icon={Users} delay={0} />
-        <StatCard title="Consulta Agendada" value="515" change={7.9} icon={MousePointerClick} delay={0.05} />
-        <StatCard title="Comprou" value="294" change={4.5} icon={Target} delay={0.1} />
-        <StatCard title="Origens Ativas" value="4" change={0} icon={Megaphone} delay={0.15} />
+        <StatCard title="Leads Gerados" value="6.527" change={12.4} icon={Users} delay={0} />
+        <StatCard title="Leads por Origem" value="4 canais" change={0} icon={Megaphone} delay={0.05} />
+        <StatCard title="CPL Médio" value="42,30" change={-8.2} icon={MousePointerClick} prefix="R$ " delay={0.1} />
+        <StatCard title="Investimento em Mídia" value="276K" change={5.4} icon={TrendingUp} prefix="R$ " delay={0.15} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <StatCard title="Campanhas Ativas" value="29" change={15.0} icon={TrendingUp} delay={0.2} />
-        <StatCard title="CPL Médio" value="42,30" change={-8.2} icon={MousePointerClick} prefix="R$ " delay={0.25} />
-        <StatCard title="Taxa de Conversão" value="4,5%" change={1.2} icon={Eye} delay={0.3} />
+        <StatCard title="Taxa de Qualificação" value="7,9%" change={1.8} icon={Target} delay={0.2} />
+        <StatCard title="Leads Qualificados" value="515" change={7.9} icon={Eye} delay={0.25} />
+        <StatCard title="Campanhas Ativas" value="29" change={15.0} icon={TrendingUp} delay={0.3} />
       </div>
 
       {/* Funil de Conversão + Lead Time */}
