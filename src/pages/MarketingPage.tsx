@@ -263,7 +263,7 @@ export default function MarketingPage() {
                 <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(ch.leads / 2450) * 100}%` }}
+                    animate={{ width: `${(ch.leads / channelData[0].leads) * 100}%` }}
                     transition={{ delay: 0.8 + i * 0.1, duration: 0.6 }}
                     className="h-full rounded-full"
                     style={{ background: ch.color }}
