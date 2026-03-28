@@ -20,7 +20,7 @@ export function VGVProgress() {
   const tooltipBg = theme === "dark" ? "#1C1C1C" : "#FFFFFF";
   const tooltipBorder = theme === "dark" ? "#2A2A2A" : "#E0DDD8";
   const tooltipColor = theme === "dark" ? "#FFFFFF" : "#003D2B";
-  const orcadoColor = theme === "dark" ? "#2A2A2A" : "#D1D5DB";
+  const orcadoColor = theme === "dark" ? "#4A4A4A" : "#D1D5DB";
 
   const totalOrcado = data.reduce((s, e) => s + e.orcado, 0);
   const totalRealizado = data.reduce((s, e) => s + e.realizado, 0);

@@ -106,23 +106,6 @@ export function AppSidebar() {
         </div>
       </nav>
 
-      {/* Team Selector */}
-      {!collapsed && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="p-3 mx-3 mb-3 rounded-lg flex items-center gap-3 cursor-pointer bg-muted border border-border"
-        >
-          <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
-            <Triangle className="h-4 w-4 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground">Equipe</p>
-            <p className="text-sm font-semibold truncate text-foreground">Marketing</p>
-          </div>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-        </motion.div>
-      )}
     </motion.aside>
   );
 }
