@@ -353,11 +353,11 @@ export default function IAPage() {
         <div className="mt-3 flex items-center gap-6 text-xs text-muted-foreground">
           <div>
             <span className="text-foreground font-semibold text-lg">4,2x</span>
-            <p>mais conversões com IA</p>
+            <p>mais conversões com PIPA</p>
           </div>
           <div>
             <span className="text-foreground font-semibold text-lg">78%</span>
-            <p>das vendas tiveram influência da IA</p>
+            <p>das vendas tiveram influência da PIPA</p>
           </div>
           <div>
             <span className="text-foreground font-semibold text-lg">-62%</span>
