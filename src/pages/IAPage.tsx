@@ -189,7 +189,7 @@ export default function IAPage() {
       {/* ══════ FOLLOW-UP & REATIVAÇÃO ══════ */}
       <div className="mb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          🔄 Performance IA — Follow-up & Reativação
+          🔄 Performance PIPA — Follow-up & Reativação
         </h2>
       </div>
 
