@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 
 const integrations = [
-  { name: "Stripe", type: "Finance", rate: 40, color: "#FF8A00" },
+  { name: "Stripe", type: "Financeiro", rate: 40, color: "#FF8A00" },
   { name: "Zapier", type: "CRM", rate: 28, color: "#FFA940" },
   { name: "Shopify", type: "Marketplace", rate: 20, color: "#CC6E00" },
 ];
@@ -15,8 +15,8 @@ export function IntegrationsList() {
       className="chart-card"
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold text-foreground">List of Integration</span>
-        <button className="text-xs font-medium text-primary hover:underline">See All</button>
+        <span className="text-sm font-semibold text-foreground">Integrações</span>
+        <button className="text-xs font-medium text-primary hover:underline">Ver Todas</button>
       </div>
 
       <div className="overflow-x-auto">
@@ -26,9 +26,9 @@ export function IntegrationsList() {
               <th className="pb-3 text-left font-medium w-8">
                 <input type="checkbox" className="rounded border-border" />
               </th>
-              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Application</th>
-              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Type</th>
-              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Rate</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Aplicação</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Tipo</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Taxa</th>
             </tr>
           </thead>
           <tbody>

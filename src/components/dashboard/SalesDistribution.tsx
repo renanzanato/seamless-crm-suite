@@ -3,9 +3,9 @@ import { ChevronDown } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 const data = [
-  { name: "Website", value: 374.82, color: "#FF8A00" },
-  { name: "Mobile App", value: 241.60, color: "#FFA940" },
-  { name: "Other", value: 213.42, color: "#A0A0A0" },
+  { name: "Site", value: 374.82, color: "#FF8A00" },
+  { name: "App Mobile", value: 241.60, color: "#FFA940" },
+  { name: "Outros", value: 213.42, color: "#A0A0A0" },
 ];
 
 export function SalesDistribution() {
@@ -17,9 +17,9 @@ export function SalesDistribution() {
       className="chart-card"
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold text-foreground">Sales Distribution</span>
+        <span className="text-sm font-semibold text-foreground">Distribuição de Vendas</span>
         <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded-lg px-2.5 py-1 hover:bg-secondary hover:text-primary transition-colors">
-          Monthly <ChevronDown className="h-3.5 w-3.5" />
+          Mensal <ChevronDown className="h-3.5 w-3.5" />
         </button>
       </div>
 
@@ -30,7 +30,7 @@ export function SalesDistribution() {
               <div className="h-2.5 w-2.5 rounded-sm" style={{ background: item.color }} />
               <span className="text-xs text-muted-foreground">{item.name}</span>
             </div>
-            <span className="text-lg font-bold text-foreground">$ {item.value.toFixed(2)}</span>
+            <span className="text-lg font-bold text-foreground">R$ {item.value.toFixed(2).replace('.', ',')}</span>
           </div>
         ))}
       </div>

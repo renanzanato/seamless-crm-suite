@@ -12,25 +12,25 @@ import { Filter, ArrowUpDown, MoreHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 const data = [
-  { month: "Oct", Direct: 900, Referral: 700, Organic: 500, Social: 500, Other: 388 },
-  { month: "Nov", Direct: 600, Referral: 500, Organic: 365, Social: 200, Other: 100 },
-  { month: "Dec", Direct: 1200, Referral: 1000, Organic: 800, Social: 600, Other: 406 },
+  { month: "Out", Direto: 900, Indicação: 700, Orgânico: 500, Social: 500, Outros: 388 },
+  { month: "Nov", Direto: 600, Indicação: 500, Orgânico: 365, Social: 200, Outros: 100 },
+  { month: "Dez", Direto: 1200, Indicação: 1000, Orgânico: 800, Social: 600, Outros: 406 },
 ];
 
-const darkColors = {
-  Direct: "#FF8A00",
-  Referral: "#FFA940",
-  Organic: "#CC6E00",
+const darkColors: Record<string, string> = {
+  Direto: "#FF8A00",
+  Indicação: "#FFA940",
+  Orgânico: "#CC6E00",
   Social: "#A0A0A0",
-  Other: "#2A2A2A",
+  Outros: "#2A2A2A",
 };
 
-const lightColors = {
-  Direct: "#FF8A1E",
-  Referral: "#FFA940",
-  Organic: "#003D2B",
+const lightColors: Record<string, string> = {
+  Direto: "#FF8A1E",
+  Indicação: "#FFA940",
+  Orgânico: "#003D2B",
   Social: "#A0A0A0",
-  Other: "#D1F2E6",
+  Outros: "#D1F2E6",
 };
 
 export function SalesOverviewChart() {
@@ -51,14 +51,14 @@ export function SalesOverviewChart() {
     >
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">📊 Sales Overview</span>
+          <span className="text-sm font-medium text-muted-foreground">📊 Visão de Vendas</span>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary hover:text-primary transition-colors text-muted-foreground">
-            <Filter className="h-3.5 w-3.5" /> Filter
+            <Filter className="h-3.5 w-3.5" /> Filtrar
           </button>
           <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border hover:bg-secondary hover:text-primary transition-colors text-muted-foreground">
-            <ArrowUpDown className="h-3.5 w-3.5" /> Sort
+            <ArrowUpDown className="h-3.5 w-3.5" /> Ordenar
           </button>
           <button className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
             <MoreHorizontal className="h-4 w-4" />
@@ -67,9 +67,9 @@ export function SalesOverviewChart() {
       </div>
 
       <div className="flex items-end gap-3 mb-4">
-        <span className="text-3xl font-bold text-foreground">$ 9,257.51</span>
-        <span className="badge-success mb-1">↗ 15.8%</span>
-        <span className="text-xs text-muted-foreground mb-1">+ $143.50 increased</span>
+        <span className="text-3xl font-bold text-foreground">R$ 9.257,51</span>
+        <span className="badge-success mb-1">↗ 15,8%</span>
+        <span className="text-xs text-muted-foreground mb-1">+ R$ 143,50 aumento</span>
       </div>
 
       <ResponsiveContainer width="100%" height={260}>
@@ -85,13 +85,13 @@ export function SalesOverviewChart() {
               fontSize: "12px",
               color: tooltipColor,
             }}
-            formatter={(value: number) => [`$${value.toLocaleString()}`, ""]}
+            formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, ""]}
           />
-          <Bar dataKey="Direct" stackId="a" fill={COLORS.Direct} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Referral" stackId="a" fill={COLORS.Referral} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Organic" stackId="a" fill={COLORS.Organic} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Direto" stackId="a" fill={COLORS.Direto} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Indicação" stackId="a" fill={COLORS.Indicação} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="Orgânico" stackId="a" fill={COLORS.Orgânico} radius={[0, 0, 0, 0]} />
           <Bar dataKey="Social" stackId="a" fill={COLORS.Social} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Other" stackId="a" fill={COLORS.Other} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Outros" stackId="a" fill={COLORS.Outros} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
 

@@ -9,7 +9,7 @@ export function TopBar() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search"
+          placeholder="Buscar..."
           className="w-full pl-10 pr-20 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-muted-foreground">
@@ -41,7 +41,7 @@ export function TopBar() {
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-semibold text-foreground leading-tight">PIPA Driven</p>
-            <p className="text-xs text-muted-foreground">Business</p>
+            <p className="text-xs text-muted-foreground">Negócios</p>
           </div>
         </div>
       </div>
