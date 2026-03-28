@@ -41,15 +41,17 @@ const channelData = [
   { canal: "Google Ads", leads: 2450, color: "#FF8A00" },
   { canal: "Meta Ads", leads: 1890, color: "#FFA940" },
   { canal: "Orgânico", leads: 1120, color: "#CC6E00" },
-  { canal: "Indicação", leads: 780, color: "#A0A0A0" },
-  { canal: "Outros", leads: 287, color: "#4A4A4A" },
+  { canal: "Site", leads: 780, color: "#A0A0A0" },
+  { canal: "E-mail", leads: 520, color: "#4A4A4A" },
+  { canal: "SMS", leads: 340, color: "#6B6B6B" },
+  { canal: "Indicação", leads: 287, color: "#8B8B8B" },
 ];
 
 // Lead time entre etapas
 const leadTimeData = [
-  { de: "Fez Contato", para: "Consulta Agendada", media: "11,3 dias", mediana: "1,5 dias", min: "0,0", max: "316,6 dias", base: 371 },
-  { de: "Consulta Agendada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134,8 dias", base: 222 },
-  { de: "Fez Contato", para: "Comprou", media: "23,2 dias", mediana: "13,5 dias", min: "0,0", max: "280,6 dias", base: 226 },
+  { de: "Fez Contato", para: "Consulta Agendada", media: "11,3 dias", mediana: "1,5 dias", min: "0,0", max: "316,6 dias", base: 371, change: -8.2 },
+  { de: "Consulta Agendada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134,8 dias", base: 222, change: 3.1 },
+  { de: "Fez Contato", para: "Comprou", media: "23,2 dias", mediana: "13,5 dias", min: "0,0", max: "280,6 dias", base: 226, change: -5.4 },
 ];
 
 // Evolução mensal de leads
@@ -108,20 +110,20 @@ export default function MarketingPage() {
       </div>
 
       {/* Funil de Conversão + Lead Time */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
         {/* Funil */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.3 }}
-          className="chart-card"
+          className="chart-card lg:col-span-3"
         >
-          <h3 className="text-sm font-semibold text-foreground mb-4 uppercase tracking-wider">
+          <h3 className="text-sm font-semibold text-foreground mb-5 uppercase tracking-wider">
             Funil de Conversão
           </h3>
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-0">
             {funnelData.map((step, i) => {
-              const widthPct = Math.max(30, 100 - i * 20);
+              const widthPct = Math.max(35, 100 - i * 18);
               return (
                 <motion.div
                   key={step.etapa}
@@ -138,11 +140,16 @@ export default function MarketingPage() {
                     }}
                   >
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">{step.etapa}</p>
-                    <p className="text-2xl font-bold text-white">{step.valor.toLocaleString("pt-BR")}</p>
-                    <p className="text-xs text-white/70">{step.pct} de Fez Contato</p>
+                    <p className="text-xl font-bold text-white">{step.valor.toLocaleString("pt-BR")}</p>
+                    <p className="text-[10px] text-white/70">{step.pct} de Fez Contato</p>
                   </div>
                   {step.convPct && (
-                    <p className="text-[11px] text-muted-foreground mt-1 mb-1">{step.convPct}</p>
+                    <div className="flex items-center gap-1.5 my-1">
+                      <svg width="12" height="16" viewBox="0 0 12 16" className="text-primary shrink-0">
+                        <path d="M6 0 L6 12 M2 8 L6 14 L10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <p className="text-[10px] text-muted-foreground">{step.convPct}</p>
+                    </div>
                   )}
                 </motion.div>
               );
@@ -155,29 +162,49 @@ export default function MarketingPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="chart-card"
+          className="chart-card lg:col-span-2"
         >
           <h3 className="text-sm font-semibold text-foreground mb-4 uppercase tracking-wider">
             Lead Time entre Etapas
           </h3>
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-1 gap-2.5">
             {leadTimeData.map((item, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: 12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 + i * 0.1 }}
-                className="p-4 rounded-lg border border-border bg-secondary/30"
+                className="p-3 rounded-lg border border-border bg-secondary/30"
               >
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                  {item.de} → {item.para}
-                </p>
-                <p className="text-2xl font-bold text-foreground">{item.media}</p>
-                <p className="text-xs text-muted-foreground">média</p>
-                <div className="mt-2 text-[11px] text-muted-foreground">
-                  <span>Mediana: {item.mediana} | Min: {item.min} | Max: {item.max}</span>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{item.de}</span>
+                  <svg width="14" height="10" viewBox="0 0 14 10" className="text-primary shrink-0">
+                    <path d="M0 5 L10 5 M7 1 L11 5 L7 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{item.para}</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Base: {item.base} leads</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-xl font-bold text-foreground leading-tight">{item.media}</p>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.change < 0 ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
+                    {item.change < 0 ? "↘" : "↗"} {Math.abs(item.change)}%
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">média</p>
+                <div className="mt-1.5 grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
+                  <div>
+                    <span className="block font-semibold text-foreground/70">Mediana</span>
+                    {item.mediana}
+                  </div>
+                  <div>
+                    <span className="block font-semibold text-foreground/70">Mín</span>
+                    {item.min}
+                  </div>
+                  <div>
+                    <span className="block font-semibold text-foreground/70">Máx</span>
+                    {item.max}
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Base: {item.base} leads</p>
               </motion.div>
             ))}
           </div>
@@ -236,7 +263,7 @@ export default function MarketingPage() {
                 <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${(ch.leads / 2450) * 100}%` }}
+                    animate={{ width: `${(ch.leads / channelData[0].leads) * 100}%` }}
                     transition={{ delay: 0.8 + i * 0.1, duration: 0.6 }}
                     className="h-full rounded-full"
                     style={{ background: ch.color }}
