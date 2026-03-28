@@ -105,7 +105,7 @@ export default function IAPage() {
       {/* ══════ PRÉ-VENDA ══════ */}
       <div className="mb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          🤖 Performance IA — Pré-Venda
+          🤖 Performance PIPA — Pré-Venda
         </h2>
       </div>
 
