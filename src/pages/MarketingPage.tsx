@@ -30,9 +30,12 @@ import { useTheme } from "@/hooks/use-theme";
 
 // Funil de conversão
 const funnelData = [
-  { etapa: "Leads", valor: 6527, pct: "100%", convPct: "" },
-  { etapa: "Visitas Agendadas", valor: 515, pct: "7,9%", convPct: "7,9% dos Leads converteram" },
-  { etapa: "Comprou", valor: 294, pct: "4,5%", convPct: "57,1% das Visitas converteram" },
+  { etapa: "Leads", sub: "Total de contatos", valor: 6527, pct: "100%", convPct: "" },
+  { etapa: "MQL", sub: "Qualificados pelo Marketing", valor: 2480, pct: "38%", convPct: "38% dos Leads" },
+  { etapa: "SQL", sub: "Qualificados por Vendas", valor: 890, pct: "13,6%", convPct: "35,9% dos MQL" },
+  { etapa: "Visitas Agendadas", sub: "", valor: 515, pct: "7,9%", convPct: "57,9% dos SQL" },
+  { etapa: "Visitas Realizadas", sub: "", valor: 380, pct: "5,8%", convPct: "73,8% das Agendadas" },
+  { etapa: "Comprou", sub: "", valor: 294, pct: "4,5%", convPct: "77,4% das Realizadas" },
 ];
 
 // Leads por canal
