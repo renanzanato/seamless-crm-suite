@@ -3,11 +3,11 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 
 import { useTheme } from "@/hooks/use-theme";
 
 const data = [
-  { canal: "Google Ads", vendas: 12, receita: 1580000 },
-  { canal: "Meta Ads", vendas: 8, receita: 1120000 },
-  { canal: "Indicação", vendas: 6, receita: 890000 },
-  { canal: "Portais", vendas: 5, receita: 620000 },
+  { canal: "Mídia Paga", vendas: 14, receita: 2100000 },
+  { canal: "Parceiros", vendas: 8, receita: 1200000 },
+  { canal: "Site", vendas: 6, receita: 780000 },
   { canal: "Orgânico", vendas: 3, receita: 310000 },
+  { canal: "Indicação", vendas: 3, receita: 130000 },
 ];
 
 const darkBarColors = ["#FF8A00", "#FFA940", "#CC6E00", "#A0A0A0", "#2A2A2A"];
