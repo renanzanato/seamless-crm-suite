@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import MarketingPage from "./pages/MarketingPage.tsx";
 import VendasPage from "./pages/VendasPage.tsx";
+import IAPage from "./pages/IAPage.tsx";
 import PlaceholderPage from "./pages/PlaceholderPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
