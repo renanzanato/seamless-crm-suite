@@ -196,7 +196,7 @@ export default function IAPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title="Leads Reativados" value="165" change={32.0} icon={RefreshCw} delay={0.3} />
         <StatCard title="Follow-ups Enviados" value="2.440" change={15.6} icon={Send} delay={0.35} />
-        <StatCard title="Engajamento pela IA" value="34,8%" change={5.2} icon={MousePointerClick} delay={0.4} />
+        <StatCard title="Engajamento pela PIPA" value="34,8%" change={5.2} icon={MousePointerClick} delay={0.4} />
         <StatCard title="Conversões por Reativação" value="49" change={28.4} icon={TrendingUp} delay={0.45} />
       </div>
 
