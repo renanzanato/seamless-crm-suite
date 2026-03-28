@@ -90,7 +90,7 @@ export default function IAPage() {
     <DashboardLayout>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Inteligência Artificial</h1>
+        <h1 className="text-2xl font-bold text-foreground">PIPA — Inteligência Artificial</h1>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
             <Calendar className="h-4 w-4" />
