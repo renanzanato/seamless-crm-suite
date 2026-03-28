@@ -49,11 +49,13 @@ const channelData = [
   { canal: "Indicação", leads: 287, color: "#8B8B8B" },
 ];
 
-// Lead time entre etapas
+// Lead time entre etapas (alinhado ao funil)
 const leadTimeData = [
-  { de: "Fez Contato", para: "Consulta Agendada", media: "11,3 dias", mediana: "1,5 dias", min: "0,0", max: "316,6 dias", base: 371, change: -8.2 },
-  { de: "Consulta Agendada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134,8 dias", base: 222, change: 3.1 },
-  { de: "Fez Contato", para: "Comprou", media: "23,2 dias", mediana: "13,5 dias", min: "0,0", max: "280,6 dias", base: 226, change: -5.4 },
+  { de: "Leads", para: "MQL", media: "3,2 dias", mediana: "1,5 dias", min: "0,0", max: "42 dias", base: 2480, change: -12.4 },
+  { de: "MQL", para: "SQL", media: "5,8 dias", mediana: "3,1 dias", min: "0,1", max: "89 dias", base: 890, change: -6.1 },
+  { de: "SQL", para: "Visita Agendada", media: "4,1 dias", mediana: "2,3 dias", min: "0,0", max: "58 dias", base: 515, change: 2.3 },
+  { de: "Visita Agendada", para: "Visita Realizada", media: "6,7 dias", mediana: "5,0 dias", min: "0,0", max: "45 dias", base: 380, change: -3.8 },
+  { de: "Visita Realizada", para: "Comprou", media: "14,4 dias", mediana: "10,4 dias", min: "0,2", max: "134 dias", base: 294, change: -8.2 },
 ];
 
 // Evolução mensal de leads
