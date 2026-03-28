@@ -53,7 +53,7 @@ const Index = () => {
       {/* Unit Economics */}
       <div className="mb-2">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          💰 Unit Economics
+          Unit Economics
         </h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

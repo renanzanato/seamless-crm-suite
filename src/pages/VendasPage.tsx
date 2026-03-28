@@ -158,7 +158,7 @@ export default function VendasPage() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="chart-card"
         >
-          <h3 className="text-sm font-semibold text-foreground mb-4">📈 Receita Mensal</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Receita Mensal</h3>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={revenueData}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />

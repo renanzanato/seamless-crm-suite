@@ -18,7 +18,7 @@ export function FunnelOverview() {
       className="chart-card col-span-2"
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold text-foreground">Funil Geral — Marketing → Vendas</span>
+        <span className="text-sm font-semibold text-foreground">Funil Geral</span>
         <button className="flex items-center gap-1 text-xs font-medium text-muted-foreground border border-border rounded-lg px-2.5 py-1 hover:bg-secondary hover:text-primary transition-colors">
           Mensal <ChevronDown className="h-3.5 w-3.5" />
         </button>
