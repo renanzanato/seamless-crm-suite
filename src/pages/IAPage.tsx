@@ -110,9 +110,9 @@ export default function IAPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Atendimentos pela IA" value="3.810" change={24.5} icon={Bot} delay={0} />
+        <StatCard title="Atendimentos pela PIPA" value="3.810" change={24.5} icon={Bot} delay={0} />
         <StatCard title="Tempo Médio de Resposta" value="1m 42s" change={-18.3} icon={Clock} delay={0.05} />
-        <StatCard title="Agendamentos pela IA" value="487" change={18.7} icon={CalendarCheck} delay={0.1} />
+        <StatCard title="Agendamentos pela PIPA" value="487" change={18.7} icon={CalendarCheck} delay={0.1} />
         <StatCard title="Objeções Mapeadas" value="417" change={12.3} icon={Search} delay={0.15} />
       </div>
 
