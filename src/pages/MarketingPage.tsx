@@ -113,109 +113,99 @@ export default function MarketingPage() {
         <StatCard title="Campanhas Ativas" value="29" change={15.0} icon={TrendingUp} delay={0.3} />
       </div>
 
-      {/* Funil de Conversão + Lead Time */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-6">
-        {/* Funil */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="chart-card lg:col-span-3"
-        >
-          <h3 className="text-sm font-semibold text-foreground mb-5 uppercase tracking-wider">
+      {/* Funil de Conversão com Lead Time integrado */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
+        className="chart-card mb-6"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
             Funil de Conversão
           </h3>
-          <div className="flex flex-col items-center gap-0">
+          <span className="text-xs text-muted-foreground">Lead time entre etapas</span>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-6">
+          {/* Funil visual */}
+          <div className="flex flex-col items-center">
             {funnelData.map((step, i) => {
-              const widthPct = Math.max(30, 100 - i * 12);
-              const colors = ["#FF8A00", "#E07800", "#CC6E00", "#B06000", "#8A8A8A", "#707070"];
+              const widthPct = Math.max(32, 100 - i * 13);
+              const colors = [
+                "hsl(var(--primary))",
+                "hsl(32, 90%, 45%)",
+                "hsl(32, 80%, 38%)",
+                "hsl(32, 60%, 32%)",
+                "hsl(0, 0%, 45%)",
+                "hsl(0, 0%, 38%)",
+              ];
+              const lt = leadTimeData[i];
               return (
                 <motion.div
                   key={step.etapa}
-                  initial={{ opacity: 0, scaleX: 0.5 }}
+                  initial={{ opacity: 0, scaleX: 0.6 }}
                   animate={{ opacity: 1, scaleX: 1 }}
-                  transition={{ delay: 0.4 + i * 0.12, duration: 0.4 }}
+                  transition={{ delay: 0.4 + i * 0.1, duration: 0.4 }}
                   className="flex flex-col items-center w-full"
                 >
                   <div
-                    className="rounded-lg py-3 px-4 text-center"
-                    style={{
-                      width: `${widthPct}%`,
-                      background: colors[i] || "#666",
-                    }}
+                    className="rounded-lg py-3 px-4 text-center transition-all"
+                    style={{ width: `${widthPct}%`, background: colors[i] }}
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">{step.etapa}</p>
-                    {step.sub && <p className="text-[9px] text-white/50">{step.sub}</p>}
-                    <p className="text-xl font-bold text-white">{step.valor.toLocaleString("pt-BR")}</p>
-                    <p className="text-[10px] text-white/70">{step.pct} dos Leads</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/90">{step.etapa}</p>
+                    {step.sub && <p className="text-[9px] text-white/50 mt-0.5">{step.sub}</p>}
+                    <p className="text-2xl font-bold text-white mt-1">{step.valor.toLocaleString("pt-BR")}</p>
+                    <p className="text-[10px] text-white/60">{step.pct} dos Leads</p>
                   </div>
+
                   {step.convPct && (
-                    <div className="flex items-center gap-1.5 my-2">
-                      <svg width="12" height="16" viewBox="0 0 12 16" className="text-primary shrink-0">
-                        <path d="M6 0 L6 12 M2 8 L6 14 L10 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <div className="flex items-center gap-2 my-3">
+                      <svg width="10" height="20" viewBox="0 0 10 20" className="text-primary shrink-0 opacity-60">
+                        <path d="M5 0 L5 15 M1 12 L5 18 L9 12" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
-                      <p className="text-[10px] text-muted-foreground">{step.convPct}</p>
+                      <span className="text-[10px] text-muted-foreground">{step.convPct}</span>
                     </div>
                   )}
                 </motion.div>
               );
             })}
           </div>
-        </motion.div>
 
-        {/* Lead Time */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="chart-card lg:col-span-2"
-        >
-          <h3 className="text-sm font-semibold text-foreground mb-4 uppercase tracking-wider">
-            Lead Time entre Etapas
-          </h3>
-          <div className="grid grid-cols-1 gap-2.5">
+          {/* Lead times coluna lateral */}
+          <div className="flex flex-col gap-2 justify-center">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Tempo entre etapas</h4>
             {leadTimeData.map((item, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, x: 12 }}
+                initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 + i * 0.1 }}
-                className="p-3 rounded-lg border border-border bg-secondary/30"
+                transition={{ delay: 0.5 + i * 0.08 }}
+                className="p-2.5 rounded-lg border border-border bg-secondary/20"
               >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{item.de}</span>
-                  <svg width="14" height="10" viewBox="0 0 14 10" className="text-primary shrink-0">
-                    <path d="M0 5 L10 5 M7 1 L11 5 L7 9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className="flex items-center gap-1 mb-0.5">
+                  <span className="text-[9px] text-muted-foreground truncate">{item.de}</span>
+                  <svg width="10" height="8" viewBox="0 0 10 8" className="text-primary shrink-0 opacity-60">
+                    <path d="M0 4 L7 4 M5 1 L8 4 L5 7" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{item.para}</span>
+                  <span className="text-[9px] text-muted-foreground truncate">{item.para}</span>
                 </div>
-                <div className="flex items-end gap-2">
-                  <p className="text-xl font-bold text-foreground leading-tight">{item.media}</p>
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.change < 0 ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-bold text-foreground">{item.media}</span>
+                  <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${item.change < 0 ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
                     {item.change < 0 ? "↘" : "↗"} {Math.abs(item.change)}%
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">média</p>
-                <div className="mt-1.5 grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
-                  <div>
-                    <span className="block font-semibold text-foreground/70">Mediana</span>
-                    {item.mediana}
-                  </div>
-                  <div>
-                    <span className="block font-semibold text-foreground/70">Mín</span>
-                    {item.min}
-                  </div>
-                  <div>
-                    <span className="block font-semibold text-foreground/70">Máx</span>
-                    {item.max}
-                  </div>
+                <div className="flex gap-2 mt-1 text-[9px] text-muted-foreground">
+                  <span>Med: {item.mediana}</span>
+                  <span>Mín: {item.min}</span>
+                  <span>Máx: {item.max}</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1">Base: {item.base} leads</p>
               </motion.div>
             ))}
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
 
       {/* Evolução de Leads + Leads por Canal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
