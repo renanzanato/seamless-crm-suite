@@ -127,7 +127,7 @@ export default function MarketingPage() {
           <span className="text-xs text-muted-foreground">Lead time entre etapas</span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_200px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
           {/* Funil visual */}
           <div className="flex flex-col items-center">
             {funnelData.map((step, i) => {
@@ -173,30 +173,30 @@ export default function MarketingPage() {
           </div>
 
           {/* Lead times coluna lateral */}
-          <div className="flex flex-col gap-2 justify-center">
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Tempo entre etapas</h4>
+          <div className="flex flex-col gap-3 justify-center">
+            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-1">Tempo entre etapas</h4>
             {leadTimeData.map((item, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.5 + i * 0.08 }}
-                className="p-2.5 rounded-lg border border-border bg-secondary/20"
+                className="p-3 rounded-lg border border-border bg-secondary/20"
               >
-                <div className="flex items-center gap-1 mb-0.5">
-                  <span className="text-[9px] text-muted-foreground truncate">{item.de}</span>
-                  <svg width="10" height="8" viewBox="0 0 10 8" className="text-primary shrink-0 opacity-60">
-                    <path d="M0 4 L7 4 M5 1 L8 4 L5 7" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-medium text-muted-foreground">{item.de}</span>
+                  <svg width="12" height="8" viewBox="0 0 12 8" className="text-primary shrink-0 opacity-70">
+                    <path d="M0 4 L8 4 M6 1 L10 4 L6 7" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span className="text-[9px] text-muted-foreground truncate">{item.para}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">{item.para}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-bold text-foreground">{item.media}</span>
-                  <span className={`text-[9px] font-semibold px-1 py-0.5 rounded ${item.change < 0 ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-bold text-foreground">{item.media}</span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${item.change < 0 ? "bg-green-500/10 text-green-500" : "bg-red-400/10 text-red-400"}`}>
                     {item.change < 0 ? "↘" : "↗"} {Math.abs(item.change)}%
                   </span>
                 </div>
-                <div className="flex gap-2 mt-1 text-[9px] text-muted-foreground">
+                <div className="flex gap-3 mt-1.5 text-[10px] text-muted-foreground">
                   <span>Med: {item.mediana}</span>
                   <span>Mín: {item.min}</span>
                   <span>Máx: {item.max}</span>
