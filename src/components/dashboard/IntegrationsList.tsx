@@ -1,10 +1,9 @@
 import { motion } from "framer-motion";
-import { Progress } from "@/components/ui/progress";
 
 const integrations = [
-  { name: "Stripe", type: "Finance", rate: 40, color: "hsl(252, 56%, 57%)" },
-  { name: "Zapier", type: "CRM", rate: 28, color: "hsl(168, 70%, 48%)" },
-  { name: "Shopify", type: "Marketplace", rate: 20, color: "hsl(220, 70%, 55%)" },
+  { name: "Stripe", type: "Finance", rate: 40, color: "#FF8A00" },
+  { name: "Zapier", type: "CRM", rate: 28, color: "#FFA940" },
+  { name: "Shopify", type: "Marketplace", rate: 20, color: "#CC6E00" },
 ];
 
 export function IntegrationsList() {
@@ -27,9 +26,9 @@ export function IntegrationsList() {
               <th className="pb-3 text-left font-medium w-8">
                 <input type="checkbox" className="rounded border-border" />
               </th>
-              <th className="pb-3 text-left font-medium">APPLICATION</th>
-              <th className="pb-3 text-left font-medium">TYPE</th>
-              <th className="pb-3 text-left font-medium">RATE</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Application</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Type</th>
+              <th className="pb-3 text-left font-medium uppercase tracking-wider text-[11px]">Rate</th>
             </tr>
           </thead>
           <tbody>

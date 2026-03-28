@@ -1,4 +1,4 @@
-import { Search, Calendar, Bell, PlusCircle, Command } from "lucide-react";
+import { Search, Calendar, Bell, PlusCircle } from "lucide-react";
 
 export function TopBar() {
   return (
@@ -9,24 +9,24 @@ export function TopBar() {
         <input
           type="text"
           placeholder="Search"
-          className="w-full pl-10 pr-20 py-2 rounded-lg bg-secondary border-none text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full pl-10 pr-20 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-muted-foreground">
-          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">⌘</kbd>
-          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">F</kbd>
+          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono border border-border">⌘</kbd>
+          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono border border-border">F</kbd>
         </div>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
           <Calendar className="h-5 w-5" />
         </button>
-        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground relative">
+        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary relative">
           <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-destructive rounded-full" />
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-primary rounded-full" />
         </button>
-        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground">
+        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
           <PlusCircle className="h-5 w-5" />
         </button>
 
@@ -34,11 +34,11 @@ export function TopBar() {
 
         {/* Avatar */}
         <div className="flex items-center gap-3 cursor-pointer">
-          <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-sm font-semibold text-primary">YA</span>
+          <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
+            <span className="text-sm font-semibold text-primary">PD</span>
           </div>
           <div className="hidden md:block">
-            <p className="text-sm font-semibold text-foreground leading-tight">Young Alaska</p>
+            <p className="text-sm font-semibold text-foreground leading-tight">PIPA Driven</p>
             <p className="text-xs text-muted-foreground">Business</p>
           </div>
         </div>

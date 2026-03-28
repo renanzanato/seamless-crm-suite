@@ -14,7 +14,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "sans-serif"],
+        sans: ["Outfit", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -58,19 +58,26 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        pipa: {
+          orange: "hsl(var(--pipa-orange))",
+          "orange-light": "hsl(var(--pipa-orange-light))",
+          "orange-dark": "hsl(var(--pipa-orange-dark))",
+          surface: "hsl(var(--pipa-surface))",
+          border: "hsl(var(--pipa-border))",
+        },
         chart: {
-          green: "hsl(var(--chart-green))",
-          blue: "hsl(var(--chart-blue))",
-          purple: "hsl(var(--chart-purple))",
           orange: "hsl(var(--chart-orange))",
-          red: "hsl(var(--chart-red))",
+          "orange-light": "hsl(var(--chart-orange-light))",
+          green: "hsl(var(--chart-green))",
+          "green-water": "hsl(var(--chart-green-water))",
+          gray: "hsl(var(--chart-gray))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
           primary: "hsl(var(--sidebar-primary))",
           "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
+          accent: "hsl(var(--sidebar-accent-bg, var(--sidebar-hover)))",
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
