@@ -314,7 +314,7 @@ export default function IAPage() {
         </motion.div>
       </div>
 
-      {/* Influência da IA na Conversão */}
+      {/* Influência da PIPA na Conversão */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -323,7 +323,7 @@ export default function IAPage() {
       >
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Influência da IA na Conversão</h3>
+          <h3 className="text-sm font-semibold text-foreground">Influência da PIPA na Conversão</h3>
         </div>
         <ResponsiveContainer width="100%" height={260}>
           <AreaChart data={aiInfluenceData}>
