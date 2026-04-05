@@ -1,0 +1,191 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { Plus, Upload, Search, Pencil, Trash2 } from 'lucide-react';
+import { DashboardLayout } from '@/components/DashboardLayout';
+import { ContactForm } from '@/components/crm/ContactForm';
+import { ImportCSV } from '@/components/crm/ImportCSV';
+import { Can } from '@/components/Can';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { getContacts, deleteContact, getProfiles } from '@/services/crmService';
+import { useAuth } from '@/hooks/useAuth';
+import type { Contact } from '@/types';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+export default function Contacts() {
+  const qc = useQueryClient();
+  const { isAdmin } = useAuth();
+
+  const [search, setSearch] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [editing, setEditing] = useState<Contact | null>(null);
+  const [deleting, setDeleting] = useState<Contact | null>(null);
+
+  const { data: contacts = [], isLoading } = useQuery({
+    queryKey: ['contacts', search, ownerFilter],
+    queryFn: () => getContacts({ search, ownerId: ownerFilter || undefined }),
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: getProfiles,
+    enabled: isAdmin,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteContact(deleting!.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success('Contato removido.');
+      setDeleting(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  function openCreate() { setEditing(null); setFormOpen(true); }
+  function openEdit(c: Contact) { setEditing(c); setFormOpen(true); }
+
+  return (
+    <DashboardLayout>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Contatos</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4 mr-1.5" /> Importar CSV
+          </Button>
+          <Can admin>
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1.5" /> Criar contato
+            </Button>
+          </Can>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou e-mail…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {isAdmin && profiles.length > 0 && (
+          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todos os responsáveis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos os responsáveis</SelectItem>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name ?? p.id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome</TableHead>
+              <TableHead>Cargo</TableHead>
+              <TableHead>E-mail</TableHead>
+              <TableHead>WhatsApp</TableHead>
+              <TableHead>Empresa</TableHead>
+              <TableHead>Responsável</TableHead>
+              <TableHead>Criado em</TableHead>
+              <TableHead className="w-20" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Carregando…
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && contacts.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Nenhum contato encontrado.
+                </TableCell>
+              </TableRow>
+            )}
+            {contacts.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">{c.name}</TableCell>
+                <TableCell className="text-muted-foreground">{c.role ?? '—'}</TableCell>
+                <TableCell className="text-muted-foreground">{c.email ?? '—'}</TableCell>
+                <TableCell className="text-muted-foreground">{c.whatsapp ?? '—'}</TableCell>
+                <TableCell>{c.company?.name ?? '—'}</TableCell>
+                <TableCell>{c.owner?.name ?? '—'}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                </TableCell>
+                <TableCell>
+                  <Can admin>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={() => setDeleting(c)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </Can>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <ContactForm open={formOpen} onOpenChange={setFormOpen} contact={editing} />
+      <ImportCSV open={importOpen} onOpenChange={setImportOpen} />
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover contato</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover <strong>{deleting?.name}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? 'Removendo…' : 'Remover'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DashboardLayout>
+  );
+}

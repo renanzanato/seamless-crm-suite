@@ -10,29 +10,71 @@ import {
   HelpCircle,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Triangle,
+  GitBranch,
+  Kanban,
+  Plug,
+  Workflow,
+  Users,
+  Building2,
+  Briefcase,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
-const mainItems = [
-  { title: "Visão Geral", url: "/", icon: LayoutDashboard },
-  { title: "Marketing", url: "/marketing", icon: Megaphone },
-  { title: "Vendas", url: "/vendas", icon: HandCoins },
-  { title: "PIPA", url: "/ia", icon: Bot },
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  adminOnly?: boolean;
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    label: '',
+    items: [
+      { title: "Visão Geral", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Marketing",   url: "/marketing", icon: Megaphone },
+      { title: "Vendas",      url: "/vendas",    icon: HandCoins },
+      { title: "PIPA",        url: "/ia",        icon: Bot },
+      { title: "Funil",       url: "/funil",     icon: Kanban },
+    ],
+  },
+  {
+    label: 'CRM',
+    items: [
+      { title: "Contatos",  url: "/crm/contatos",  icon: Users },
+      { title: "Empresas",  url: "/crm/empresas",  icon: Building2 },
+      { title: "Negócios",  url: "/crm/negocios",  icon: Briefcase },
+    ],
+  },
+  {
+    label: 'Admin',
+    items: [
+      { title: "Funis",       url: "/funis",       icon: GitBranch, adminOnly: true },
+      { title: "Integrações", url: "/integracoes", icon: Plug,      adminOnly: true },
+      { title: "Sequências",  url: "/sequencias",  icon: Workflow,  adminOnly: true },
+    ],
+  },
 ];
 
-const supportItems = [
+const supportItems: NavItem[] = [
   { title: "Configurações", url: "/settings", icon: Settings },
-  { title: "Ajuda", url: "/help", icon: HelpCircle },
+  { title: "Ajuda",         url: "/help",     icon: HelpCircle },
 ];
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   const isActive = (url: string) => location.pathname === url;
 
-  const renderItem = (item: typeof mainItems[0]) => (
+  const renderItem = (item: NavItem) => (
     <Link
       key={item.title}
       to={item.url}
@@ -53,6 +95,21 @@ export function AppSidebar() {
       </AnimatePresence>
     </Link>
   );
+
+  const renderSection = (section: NavSection) => {
+    const visible = section.items.filter((item) => !item.adminOnly || isAdmin);
+    if (visible.length === 0) return null;
+    return (
+      <div key={section.label}>
+        {section.label && !collapsed && (
+          <p className="text-[11px] font-semibold uppercase tracking-wider px-3 mb-2 text-muted-foreground/50">
+            {section.label}
+          </p>
+        )}
+        <div className="space-y-0.5">{visible.map(renderItem)}</div>
+      </div>
+    );
+  };
 
   return (
     <motion.aside
@@ -92,9 +149,7 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-6">
-        <div>
-          <div className="space-y-0.5">{mainItems.map(renderItem)}</div>
-        </div>
+        {navSections.map(renderSection)}
 
         <div>
           {!collapsed && (
@@ -102,10 +157,14 @@ export function AppSidebar() {
               Suporte
             </p>
           )}
-          <div className="space-y-0.5">{supportItems.map(renderItem)}</div>
+          <div className="space-y-0.5">
+            {[
+              { title: "Configurações", url: "/settings", icon: Settings },
+              { title: "Ajuda",         url: "/help",     icon: HelpCircle },
+            ].map(renderItem)}
+          </div>
         </div>
       </nav>
-
     </motion.aside>
   );
 }
