@@ -3,21 +3,20 @@ import { useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
-  Megaphone,
-  HandCoins,
-  Bot,
   Settings,
   HelpCircle,
+  GitBranch,
   ChevronLeft,
   ChevronRight,
   Triangle,
-  GitBranch,
-  Kanban,
+  CalendarDays,
   Plug,
-  Workflow,
   Users,
   Building2,
   Briefcase,
+  Zap,
+  Workflow,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -37,11 +36,10 @@ const navSections: NavSection[] = [
   {
     label: '',
     items: [
-      { title: "Visão Geral", url: "/dashboard", icon: LayoutDashboard },
-      { title: "Marketing",   url: "/marketing", icon: Megaphone },
-      { title: "Vendas",      url: "/vendas",    icon: HandCoins },
-      { title: "PIPA",        url: "/ia",        icon: Bot },
-      { title: "Funil",       url: "/funil",     icon: Kanban },
+      { title: "Comando do Dia", url: "/hoje",       icon: Zap },
+      { title: "WhatsApp",       url: "/mensagens",  icon: MessageSquare },
+      { title: "Calendário",     url: "/calendario", icon: CalendarDays },
+      { title: "Painel",         url: "/dashboard",  icon: LayoutDashboard },
     ],
   },
   {
@@ -49,7 +47,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Contatos",  url: "/crm/contatos",  icon: Users },
       { title: "Empresas",  url: "/crm/empresas",  icon: Building2 },
-      { title: "Negócios",  url: "/crm/negocios",  icon: Briefcase },
+      { title: "Pipeline",  url: "/crm/negocios",  icon: Briefcase },
     ],
   },
   {
@@ -72,7 +70,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { isAdmin } = useAuth();
 
-  const isActive = (url: string) => location.pathname === url;
+  const isActive = (url: string) => location.pathname === url || location.pathname.startsWith(`${url}/`);
 
   const renderItem = (item: NavItem) => (
     <Link
@@ -158,10 +156,7 @@ export function AppSidebar() {
             </p>
           )}
           <div className="space-y-0.5">
-            {[
-              { title: "Configurações", url: "/settings", icon: Settings },
-              { title: "Ajuda",         url: "/help",     icon: HelpCircle },
-            ].map(renderItem)}
+            {supportItems.map(renderItem)}
           </div>
         </div>
       </nav>

@@ -8,18 +8,18 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminRoute } from "@/components/AdminRoute";
 import Login from "./pages/Login.tsx";
 import Index from "./pages/Index.tsx";
-import MarketingPage from "./pages/MarketingPage.tsx";
-import VendasPage from "./pages/VendasPage.tsx";
-import IAPage from "./pages/IAPage.tsx";
 import PlaceholderPage from "./pages/PlaceholderPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import SequenciasPage from "./pages/SequenciasPage.tsx";
 import SequenciaBuilderPage from "./pages/SequenciaBuilderPage.tsx";
-import Kanban from "./pages/funil/Kanban.tsx";
-import FunnelConfig from "./pages/funil/FunnelConfig.tsx";
 import Contacts from "./pages/crm/Contacts.tsx";
 import Companies from "./pages/crm/Companies.tsx";
-import Deals from "./pages/crm/Deals.tsx";
+import PipelinePage from "./pages/crm/PipelinePage.tsx";
+import Integrations from "./pages/dados/Integrations.tsx";
+import HojePage from "./pages/HojePage.tsx";
+import CompanyDetail from "./pages/crm/CompanyDetail.tsx";
+import CalendarPage from "./pages/CalendarPage.tsx";
+import MensagensPage from "./pages/MensagensPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -31,30 +31,32 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Pública */}
             <Route path="/login" element={<Login />} />
 
-            {/* Protegidas */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Index />} />
-              <Route path="/marketing" element={<MarketingPage />} />
-              <Route path="/vendas" element={<VendasPage />} />
-              <Route path="/ia" element={<IAPage />} />
+              <Route path="/hoje" element={<HojePage />} />
+              <Route path="/mensagens" element={<MensagensPage />} />
+              <Route path="/calendario" element={<CalendarPage />} />
+              <Route path="/metricas" element={<Navigate to="/dashboard?view=gtm" replace />} />
+              <Route path="/vendas" element={<Navigate to="/dashboard?view=sales" replace />} />
               <Route path="/settings" element={<PlaceholderPage />} />
               <Route path="/help" element={<PlaceholderPage />} />
 
               {/* CRM */}
               <Route path="/crm/contatos" element={<Contacts />} />
               <Route path="/crm/empresas" element={<Companies />} />
-              <Route path="/crm/negocios" element={<Deals />} />
+              <Route path="/crm/empresas/:id" element={<CompanyDetail />} />
+              <Route path="/crm/negocios" element={<PipelinePage />} />
 
-              {/* Funil — Kanban acessível a todos */}
-              <Route path="/funil" element={<Kanban />} />
+              {/* Funil */}
+              <Route path="/funil" element={<Navigate to="/crm/negocios?tab=kanban" replace />} />
 
               {/* Admin-only */}
               <Route element={<AdminRoute />}>
-                <Route path="/funis" element={<FunnelConfig />} />
+                <Route path="/funis" element={<Navigate to="/crm/negocios?tab=estrutura" replace />} />
+                <Route path="/integracoes" element={<Integrations />} />
                 <Route path="/sequencias" element={<SequenciasPage />} />
                 <Route path="/sequencias/nova" element={<SequenciaBuilderPage />} />
                 <Route path="/sequencias/:id" element={<SequenciaBuilderPage />} />

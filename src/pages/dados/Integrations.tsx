@@ -27,9 +27,9 @@ interface IntegrationMeta {
 const INTEGRATION_META: IntegrationMeta[] = [
   { name: "apollo",     label: "Apollo API",        description: "Prospecção e enriquecimento de contatos B2B.", icon: Search },
   { name: "search_api", label: "Search API",         description: "Dados de empresas e contatos via web search.", icon: Globe },
-  { name: "n8n",        label: "n8n Webhook",        description: "Automações e workflows via n8n self-hosted.", icon: Webhook },
+  { name: "n8n",        label: "n8n Webhook",        description: "Recebe WhatsApp, sinais de mercado e eventos automáticos do seu stack.", icon: Webhook },
   { name: "briary",     label: "Briary Data",        description: "Dados imobiliários e segmentação avançada.", icon: Database },
-  { name: "whatsapp",   label: "WhatsApp",           description: "Envio de mensagens e campanhas via WhatsApp.", icon: MessageCircle },
+  { name: "whatsapp",   label: "WhatsApp",           description: "Entrada e saída de mensagens com atualização automática do CRM.", icon: MessageCircle },
   { name: "email",      label: "Email",              description: "Disparos e sequências de e-mail marketing.", icon: Mail },
   { name: "openai",     label: "OpenAI / Anthropic", description: "Modelos de linguagem para IA no CRM.", icon: Brain },
 ];
@@ -111,7 +111,7 @@ export default function Integrations() {
                   description={meta.description}
                   icon={meta.icon}
                   status={status}
-                  isAdmin={isAdmin}
+                  isAdmin={isAdmin && !!integration}
                   delay={i * 0.05}
                   onConfigure={() => integration && setConfiguring(integration)}
                 />

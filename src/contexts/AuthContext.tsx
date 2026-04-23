@@ -1,7 +1,48 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
-import type { Profile, Role } from '@/types';
+import type { Session, User } from '@supabase/supabase-js';
+import {
+  supabase,
+  isLocalAuthBypassEnabled,
+  isSupabaseConfigured,
+} from '@/lib/supabase';
+import type { Profile } from '@/types';
+
+const BYPASS_USER_ID = '00000000-0000-0000-0000-000000000000';
+
+const bypassProfile: Profile = {
+  id: BYPASS_USER_ID,
+  role: 'admin',
+  name: 'Admin Local (bypass)',
+  created_at: new Date().toISOString(),
+};
+
+const bypassSession = {
+  access_token: 'bypass',
+  refresh_token: 'bypass',
+  expires_in: 999999,
+  token_type: 'bearer',
+  user: {
+    id: BYPASS_USER_ID,
+    aud: 'authenticated',
+    role: 'authenticated',
+    email: 'admin@pipadriven.local',
+    app_metadata: {},
+    user_metadata: { name: 'Admin Local (bypass)' },
+    created_at: new Date().toISOString(),
+  },
+} as unknown as Session;
+
+function buildFallbackProfile(user: User): Profile {
+  return {
+    id: user.id,
+    role: 'user',
+    name:
+      (typeof user.user_metadata?.name === 'string' && user.user_metadata.name.trim()) ||
+      user.email ||
+      'Usuário',
+    created_at: user.created_at ?? new Date().toISOString(),
+  };
+}
 
 interface AuthContextValue {
   session: Session | null;
@@ -23,16 +64,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchProfile(session.user.id);
-      else setLoading(false);
+    if (!isSupabaseConfigured) {
+      if (isLocalAuthBypassEnabled) {
+        setSession(bypassSession);
+        setProfile(bypassProfile);
+      } else {
+        setSession(null);
+        setProfile(null);
+      }
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session: realSession } }) => {
+      if (realSession) {
+        setSession(realSession);
+        fetchProfile(realSession.user);
+      } else {
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchProfile(session.user.id);
-      else {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, realSession) => {
+      if (realSession) {
+        setSession(realSession);
+        fetchProfile(realSession.user);
+      } else {
+        setSession(null);
         setProfile(null);
         setLoading(false);
       }
@@ -41,14 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchProfile(userId: string) {
-    const { data } = await supabase
+  async function fetchProfile(user: User) {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId)
+      .eq('id', user.id)
       .single();
 
-    setProfile(data ?? null);
+    if (error) {
+      console.warn('[Pipa Driven] Perfil não encontrado; usando fallback seguro.', error.message);
+    }
+
+    setProfile(data ?? buildFallbackProfile(user));
     setLoading(false);
   }
 

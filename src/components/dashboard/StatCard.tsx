@@ -4,14 +4,14 @@ import { LucideIcon } from "lucide-react";
 interface StatCardProps {
   title: string;
   value: string;
-  change: number;
+  change?: number;
   icon: LucideIcon;
   prefix?: string;
   delay?: number;
 }
 
 export function StatCard({ title, value, change, icon: Icon, prefix = "", delay = 0 }: StatCardProps) {
-  const isPositive = change >= 0;
+  const isPositive = (change ?? 0) >= 0;
 
   return (
     <motion.div
@@ -34,9 +34,11 @@ export function StatCard({ title, value, change, icon: Icon, prefix = "", delay 
       </div>
       <div className="flex items-end gap-3">
         <span className="text-2xl font-bold text-foreground">{prefix}{value}</span>
-        <span className={isPositive ? "badge-success" : "badge-destructive"}>
-          {isPositive ? "↗" : "↘"} {Math.abs(change)}%
-        </span>
+        {change !== undefined && (
+          <span className={isPositive ? "badge-success" : "badge-destructive"}>
+            {isPositive ? "↗" : "↘"} {Math.abs(change)}%
+          </span>
+        )}
       </div>
     </motion.div>
   );

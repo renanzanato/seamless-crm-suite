@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import {
+  supabase,
+  isLocalAuthBypassEnabled,
+  isSupabaseConfigured,
+} from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,15 +19,20 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const authDisabled = !isSupabaseConfigured && !isLocalAuthBypassEnabled;
 
   // Já autenticado → vai direto pro dashboard
-  if (!authLoading && isAuthenticated) {
-    navigate('/dashboard', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  if (authLoading) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (authDisabled) return;
     setError(null);
     setLoading(true);
 
@@ -76,7 +85,13 @@ export default function Login() {
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            {authDisabled && (
+              <p className="text-sm text-muted-foreground">
+                Configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` para habilitar o login.
+              </p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading || authDisabled}>
               {loading ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>

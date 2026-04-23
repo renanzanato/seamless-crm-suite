@@ -11,11 +11,7 @@ import {
 import { Filter, ArrowUpDown, MoreHorizontal } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
-const data = [
-  { month: "Out", Direto: 900, Indicação: 700, Orgânico: 500, Social: 500, Outros: 388 },
-  { month: "Nov", Direto: 600, Indicação: 500, Orgânico: 365, Social: 200, Outros: 100 },
-  { month: "Dez", Direto: 1200, Indicação: 1000, Orgânico: 800, Social: 600, Outros: 406 },
-];
+const data: { month: string; Direto: number; Indicação: number; Orgânico: number; Social: number; Outros: number }[] = [];
 
 const darkColors: Record<string, string> = {
   Direto: "#FF8A00",
@@ -67,42 +63,47 @@ export function SalesOverviewChart() {
       </div>
 
       <div className="flex items-end gap-3 mb-4">
-        <span className="text-3xl font-bold text-foreground">R$ 9.257,51</span>
-        <span className="badge-success mb-1">↗ 15,8%</span>
-        <span className="text-xs text-muted-foreground mb-1">+ R$ 143,50 aumento</span>
+        <span className="text-3xl font-bold text-foreground">–</span>
       </div>
 
-      <ResponsiveContainer width="100%" height={260}>
-        <BarChart data={data} barGap={2} barSize={28}>
-          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: tickColor }} />
-          <YAxis hide />
-          <Tooltip
-            contentStyle={{
-              background: tooltipBg,
-              border: `1px solid ${tooltipBorder}`,
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: tooltipColor,
-            }}
-            formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, ""]}
-          />
-          <Bar dataKey="Direto" stackId="a" fill={COLORS.Direto} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Indicação" stackId="a" fill={COLORS.Indicação} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Orgânico" stackId="a" fill={COLORS.Orgânico} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Social" stackId="a" fill={COLORS.Social} radius={[0, 0, 0, 0]} />
-          <Bar dataKey="Outros" stackId="a" fill={COLORS.Outros} radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-
-      <div className="flex items-center justify-center gap-5 mt-3">
-        {Object.entries(COLORS).map(([key, color]) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
-            <span className="text-xs text-muted-foreground">{key}</span>
+      {data.length === 0 ? (
+        <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">
+          Sem dados — métricas aparecerão conforme vendas forem registradas
+        </div>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={data} barGap={2} barSize={28}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: tickColor }} />
+              <YAxis hide />
+              <Tooltip
+                contentStyle={{
+                  background: tooltipBg,
+                  border: `1px solid ${tooltipBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: tooltipColor,
+                }}
+                formatter={(value: number) => [`R$ ${value.toLocaleString("pt-BR")}`, ""]}
+              />
+              <Bar dataKey="Direto" stackId="a" fill={COLORS.Direto} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Indicação" stackId="a" fill={COLORS.Indicação} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Orgânico" stackId="a" fill={COLORS.Orgânico} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Social" stackId="a" fill={COLORS.Social} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="Outros" stackId="a" fill={COLORS.Outros} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center justify-center gap-5 mt-3">
+            {Object.entries(COLORS).map(([key, color]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-sm" style={{ background: color }} />
+                <span className="text-xs text-muted-foreground">{key}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </motion.div>
   );
 }

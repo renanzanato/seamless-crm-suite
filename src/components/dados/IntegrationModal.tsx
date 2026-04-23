@@ -8,10 +8,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { Copy, CheckCircle, XCircle, Loader2, RefreshCw, Link2 } from "lucide-react";
+import { toast } from "sonner";
 import {
+  AUTOMATION_EVENT_BLUEPRINTS,
   Integration,
   IntegrationName,
+  connectWebhookIntegration,
   saveIntegration,
   disconnectIntegration,
   testConnection,
@@ -27,12 +31,13 @@ interface IntegrationModalProps {
   onSaved: () => void;
 }
 
-const WEBHOOK_INTEGRATIONS: IntegrationName[] = ["n8n"];
+const WEBHOOK_INTEGRATIONS: IntegrationName[] = ["n8n", "whatsapp"];
 
 export function IntegrationModal({ integration, userId, onClose, onSaved }: IntegrationModalProps) {
   const isWebhook = WEBHOOK_INTEGRATIONS.includes(integration.name as IntegrationName);
 
   const [apiKey, setApiKey] = useState("");
+  const [endpointUrl, setEndpointUrl] = useState(integration.webhook_url ?? "");
   const [testState, setTestState] = useState<"idle" | "loading" | "ok" | "fail">("idle");
   const [testMessage, setTestMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -41,6 +46,9 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
   const [logsLoading, setLogsLoading] = useState(false);
 
   const webhookUrl = buildWebhookUrl(integration.id);
+  const webhookExamples = integration.name === "whatsapp"
+    ? (["whatsapp_message"] as const)
+    : (["whatsapp_message", "market_signal"] as const);
 
   useEffect(() => {
     if (isWebhook) {
@@ -50,7 +58,8 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
         .catch(() => setLogs([]))
         .finally(() => setLogsLoading(false));
     }
-  }, [integration.id, isWebhook]);
+    setEndpointUrl(integration.webhook_url ?? "");
+  }, [integration.id, integration.webhook_url, isWebhook]);
 
   async function handleTest() {
     setTestState("loading");
@@ -83,6 +92,24 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
     }
   }
 
+  async function handleWebhookConnect() {
+    setSaving(true);
+    try {
+      await connectWebhookIntegration(
+        integration.id,
+        userId,
+        endpointUrl.trim() || null,
+      );
+      toast.success("Webhook ativado.");
+      onSaved();
+      onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Nao foi possivel ativar o webhook.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function handleCopy() {
     navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
@@ -105,7 +132,7 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-1">
             {isWebhook
-              ? "Configure o webhook para receber dados do n8n."
+              ? "Ative o endpoint que recebe WhatsApp, sinais de mercado e atualiza o CRM sozinho."
               : "Informe a API key para ativar esta integração."}
           </p>
         </DialogHeader>
@@ -131,7 +158,22 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
                 </button>
               </div>
               <p className="text-[11px] text-muted-foreground/60 mt-1.5">
-                Configure este endpoint no seu workflow n8n como destino de POST.
+                Configure este endpoint no seu workflow n8n, provedor de WhatsApp ou middleware como destino de POST.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                URL do workflow/origem (opcional)
+              </label>
+              <Input
+                value={endpointUrl}
+                onChange={(e) => setEndpointUrl(e.target.value)}
+                placeholder="https://n8n.seudominio.com/webhook/..."
+                className="text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground/60 mt-1.5">
+                Guarde aqui a URL do fluxo que dispara eventos para a Pipa. Isso ajuda a auditar a integração ativa.
               </p>
             </div>
 
@@ -178,6 +220,35 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
                   ))
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Eventos suportados
+                </span>
+                <p className="text-[11px] text-muted-foreground/60 mt-1">
+                  O endpoint aceita tanto mensagens de WhatsApp quanto sinais de mercado. Troque os IDs de exemplo antes de testar.
+                </p>
+              </div>
+
+              {webhookExamples.map((kind) => (
+                <div key={kind} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {kind === "whatsapp_message" ? "WhatsApp" : "Sinal de mercado"}
+                    </span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {kind}
+                    </Badge>
+                  </div>
+                  <Textarea
+                    readOnly
+                    value={JSON.stringify(AUTOMATION_EVENT_BLUEPRINTS[kind], null, 2)}
+                    className="min-h-[160px] font-mono text-[11px]"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -253,6 +324,15 @@ export function IntegrationModal({ integration, userId, onClose, onSaved }: Inte
           >
             Cancelar
           </button>
+          {isWebhook && (
+            <button
+              onClick={handleWebhookConnect}
+              disabled={saving}
+              className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? "Salvando..." : integration.status === "connected" ? "Salvar ajustes" : "Ativar webhook"}
+            </button>
+          )}
           {!isWebhook && (
             <button
               onClick={handleSave}

@@ -206,15 +206,15 @@ export default function SequenciaBuilderPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/sequencias')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/crm/negocios?tab=automacoes')}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              {isEditing ? 'Editar sequência' : 'Nova sequência'}
+              {isEditing ? 'Editar template' : 'Novo template'}
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Configure canal, delay e template de cada step
+              Monte do zero os passos, canais e mensagens do template
             </p>
           </div>
         </div>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pipa Icon Generator</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #111; color: #eee; }
+    canvas { margin: 10px; border: 1px solid #333; }
+    .row { display: flex; gap: 20px; align-items: end; }
+    a { color: #6366f1; }
+  </style>
+</head>
+<body>
+  <h2>Pipa Driven — Icon Generator</h2>
+  <p>Right-click each canvas and "Save image as…" into the <code>icons/</code> folder.</p>
+  <div class="row">
+    <div>
+      <p>icon16.png</p>
+      <canvas id="c16" width="16" height="16"></canvas>
+    </div>
+    <div>
+      <p>icon48.png</p>
+      <canvas id="c48" width="48" height="48"></canvas>
+    </div>
+    <div>
+      <p>icon128.png</p>
+      <canvas id="c128" width="128" height="128"></canvas>
+    </div>
+  </div>
+  <script>
+    function drawIcon(canvas) {
+      const ctx = canvas.getContext("2d");
+      const s = canvas.width;
+      const r = s * 0.2; // border radius
+      const pad = s * 0.2;
+
+      // Background
+      ctx.beginPath();
+      ctx.roundRect(0, 0, s, s, r);
+      ctx.fillStyle = "#6366f1";
+      ctx.fill();
+
+      // Letter "P"
+      ctx.fillStyle = "#fff";
+      ctx.font = `bold ${s * 0.55}px -apple-system, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("P", s / 2, s / 2 + s * 0.02);
+    }
+
+    ["c16", "c48", "c128"].forEach(id => {
+      drawIcon(document.getElementById(id));
+    });
+  </script>
+</body>
+</html>

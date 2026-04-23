@@ -1,79 +1,164 @@
+import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { BarChart3, Briefcase, Gauge, LayoutDashboard, Rocket, TrendingUp } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { SalesOverviewChart } from "@/components/dashboard/SalesOverviewChart";
-import { TotalSubscriberChart } from "@/components/dashboard/TotalSubscriberChart";
-// removed SalesDistribution
-import { FunnelOverview } from "@/components/dashboard/FunnelOverview";
-import { SalesByChannel } from "@/components/dashboard/SalesByChannel";
-import { VGVProgress } from "@/components/dashboard/VGVProgress";
-import { BudgetComparison } from "@/components/dashboard/BudgetComparison";
-import { Users, ShoppingCart, DollarSign, Target, Calendar, Filter, Download, ChevronDown, TrendingUp, Banknote, Eye, Building2, PiggyBank, BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoalProgressBoard } from "@/components/dashboard/GoalProgressBoard";
+import { ExecutiveSnapshotGrid } from "@/components/dashboard/ExecutiveSnapshotGrid";
+import { PipelineStageBoard } from "@/components/dashboard/PipelineStageBoard";
+import { getGtmMetrics, type MetricCard } from "@/services/gtmMetricsService";
 
-const Index = () => {
+function MetricGrid({ metrics }: { metrics: MetricCard[] }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((metric) => (
+        <Card key={metric.label}>
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">{metric.label}</p>
+            <p className="mt-2 text-2xl font-bold">{metric.value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+export default function Index() {
+  const [params, setParams] = useSearchParams();
+  const activeView = params.get("view") ?? "overview";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["gtm-metrics"],
+    queryFn: getGtmMetrics,
+    refetchInterval: 60_000,
+  });
+
+  function setView(view: string) {
+    const next = new URLSearchParams(params);
+    next.set("view", view);
+    setParams(next);
+  }
+
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Visão Geral</h1>
-        <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            18 Out - 18 Nov
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
-            Mensal <ChevronDown className="h-3.5 w-3.5" />
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
-            <Filter className="h-4 w-4" /> Filtrar
-          </button>
-          <button className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-muted-foreground">
-            <Download className="h-4 w-4" /> Exportar
-          </button>
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="h-5 w-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">Painel</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Visão executiva, métricas GTM e vendas no mesmo fluxo.
+          </p>
         </div>
       </div>
 
-      {/* Stat Cards — Marketing + Vendas unified */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Contatos Totais" value="1.248" change={12.5} icon={Users} delay={0} />
-        <StatCard title="Vendas Realizadas" value="34" change={8.3} icon={ShoppingCart} delay={0.05} />
-        <StatCard title="Receita Total" value="4.520.000" change={15.8} icon={DollarSign} prefix="R$ " delay={0.1} />
-        <StatCard title="Taxa de Conversão" value="2,7%" change={-3.2} icon={Target} delay={0.15} />
-      </div>
+      <Tabs value={activeView} onValueChange={setView}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="overview" className="gap-1.5"><LayoutDashboard className="h-4 w-4" /> Resumo</TabsTrigger>
+          <TabsTrigger value="gtm" className="gap-1.5"><Gauge className="h-4 w-4" /> GTM</TabsTrigger>
+          <TabsTrigger value="sales" className="gap-1.5"><Briefcase className="h-4 w-4" /> Vendas</TabsTrigger>
+        </TabsList>
 
-      {/* Funnel + Sales by Channel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <FunnelOverview />
-        <SalesByChannel />
-      </div>
+        <TabsContent value="overview" className="space-y-6">
+          {isLoading || !data ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[data.presales[0], data.sales[1], data.sales[2], data.expansion[2]].map((metric) => (
+                <Card key={metric.label}>
+                  <CardContent className="p-4">
+                    <p className="text-sm text-muted-foreground">{metric.label}</p>
+                    <p className="mt-2 text-2xl font-bold">{metric.value}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{metric.detail}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <SalesOverviewChart />
-        <TotalSubscriberChart />
-      </div>
+          {!isLoading && data && <ExecutiveSnapshotGrid stats={data.executive} />}
+          {!isLoading && data && <GoalProgressBoard goals={data.goals} />}
+          {!isLoading && data && <PipelineStageBoard stages={data.pipeline} />}
+        </TabsContent>
 
-      {/* Unit Economics */}
-      <div className="mb-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          Unit Economics
-        </h2>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <StatCard title="CAC" value="1.850" change={-12.3} icon={Banknote} prefix="R$ " delay={0.4} />
-        <StatCard title="ROI PIPA" value="14,2x" change={22.5} icon={TrendingUp} delay={0.45} />
-        <StatCard title="Custo por Visita" value="185" change={-8.7} icon={Eye} prefix="R$ " delay={0.5} />
-        <StatCard title="VGV Total" value="103M" change={0} icon={Building2} prefix="R$ " delay={0.55} />
-        <StatCard title="Mídia / Receita" value="8,4%" change={-5.1} icon={PiggyBank} delay={0.6} />
-      </div>
+        <TabsContent value="gtm" className="space-y-6">
+          {isLoading || !data ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4 text-primary" /> Ritmo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-3 gap-2">
+                    <div><p className="text-xl font-bold">{data.calendar.remainingWorkingDays}</p><p className="text-[11px] text-muted-foreground">Dias úteis</p></div>
+                    <div><p className="text-xl font-bold">{data.calendar.requiredPhase0PerWorkingDay}</p><p className="text-[11px] text-muted-foreground">Fase 0/dia</p></div>
+                    <div><p className="text-xl font-bold">{data.calendar.requiredMeetingsPerWorkingDay}</p><p className="text-[11px] text-muted-foreground">Reuniões/dia</p></div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base"><Rocket className="h-4 w-4 text-primary" /> Expansão</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <p className="rounded-lg bg-muted/40 px-3 py-2">Priorizar contas com lançamento ativo ou previsto.</p>
+                    <p className="rounded-lg bg-muted/40 px-3 py-2">Medir VGV e mídia como narrativa principal de ROI.</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-4 w-4 text-primary" /> Funil reverso</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {[
+                      ["200", "contas em Fase 0"],
+                      ["40", "reuniões agendadas"],
+                      ["8", "propostas enviadas"],
+                      ["4", "contratos fechados"],
+                    ].map(([value, label]) => (
+                      <div key={label} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2">
+                        <span className="text-muted-foreground">{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
 
-      {/* VGV + Orçado vs Realizado */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <VGVProgress />
-        <BudgetComparison />
-      </div>
+              <GoalProgressBoard goals={data.goals} />
+              <ExecutiveSnapshotGrid stats={data.executive.slice(0, 4)} />
+              <MetricGrid metrics={data.presales} />
+              <MetricGrid metrics={data.expansion} />
+              <MetricGrid metrics={data.efficiency} />
+            </>
+          )}
+        </TabsContent>
 
+        <TabsContent value="sales" className="space-y-6">
+          {isLoading || !data ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
+            </div>
+          ) : (
+            <>
+              <GoalProgressBoard goals={data.goals} />
+              <ExecutiveSnapshotGrid stats={data.executive.slice(3)} />
+              <MetricGrid metrics={data.sales} />
+            </>
+          )}
+
+          {!isLoading && data && <PipelineStageBoard stages={data.pipeline} />}
+        </TabsContent>
+      </Tabs>
     </DashboardLayout>
   );
-};
-
-export default Index;
+}

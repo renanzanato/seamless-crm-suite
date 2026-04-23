@@ -17,9 +17,16 @@ export default function Kanban() {
     getFunnels()
       .then((data) => {
         setFunnels(data);
-        if (data.length > 0) setSelectedFunnelId(data[0].id);
+        if (data.length > 0) {
+          setSelectedFunnelId(data[0].id);
+        } else {
+          setLoading(false);
+        }
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error(err);
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {

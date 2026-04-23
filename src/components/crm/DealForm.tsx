@@ -19,6 +19,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deal?: Deal | null;
+  defaultCompanyId?: string;
 }
 
 interface FormState {
@@ -37,7 +38,7 @@ const EMPTY: FormState = {
   contact_id: '', company_id: '', owner_id: '', expected_close: '',
 };
 
-export function DealForm({ open, onOpenChange, deal }: Props) {
+export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Props) {
   const qc = useQueryClient();
   const { profile, isAdmin } = useAuth();
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -64,9 +65,9 @@ export function DealForm({ open, onOpenChange, deal }: Props) {
         expected_close: deal.expected_close ?? '',
       });
     } else {
-      setForm({ ...EMPTY, owner_id: profile?.id ?? '' });
+      setForm({ ...EMPTY, company_id: defaultCompanyId, owner_id: profile?.id ?? '' });
     }
-  }, [deal, profile?.id, open]);
+  }, [deal, defaultCompanyId, profile?.id, open]);
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -112,7 +113,7 @@ export function DealForm({ open, onOpenChange, deal }: Props) {
             <Input id="d-title" value={form.title} onChange={set('title')} required />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="d-value">Valor (R$)</Label>
               <Input id="d-value" type="number" step="0.01" min="0" value={form.value} onChange={set('value')} placeholder="0,00" />
@@ -123,13 +124,13 @@ export function DealForm({ open, onOpenChange, deal }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Funil</Label>
-              <Select value={form.funnel_id} onValueChange={(v) => setForm((p) => ({ ...p, funnel_id: v }))}>
+              <Select value={form.funnel_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, funnel_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— Nenhum —</SelectItem>
+                  <SelectItem value="__none__">— Nenhum —</SelectItem>
                   {funnels.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -145,23 +146,23 @@ export function DealForm({ open, onOpenChange, deal }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Contato</Label>
-              <Select value={form.contact_id} onValueChange={(v) => setForm((p) => ({ ...p, contact_id: v }))}>
+              <Select value={form.contact_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, contact_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— Nenhum —</SelectItem>
+                  <SelectItem value="__none__">— Nenhum —</SelectItem>
                   {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Empresa</Label>
-              <Select value={form.company_id} onValueChange={(v) => setForm((p) => ({ ...p, company_id: v }))}>
+              <Select value={form.company_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, company_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— Nenhuma —</SelectItem>
+                  <SelectItem value="__none__">— Nenhuma —</SelectItem>
                   {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>

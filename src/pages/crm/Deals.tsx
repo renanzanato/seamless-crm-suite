@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getDeals, deleteDeal, getProfiles } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import type { Deal } from '@/types';
 import { DEAL_STAGES } from '@/types';
 import { format } from 'date-fns';
@@ -38,13 +40,19 @@ function formatCurrency(value: number | null): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
+function formatDateOnly(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+  return format(new Date(year, month - 1, day), 'dd/MM/yyyy', { locale: ptBR });
+}
+
 export default function Deals() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
   const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('__all__');
+  const [ownerFilter, setOwnerFilter] = useState('__all__');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Deal | null>(null);
   const [deleting, setDeleting] = useState<Deal | null>(null);
@@ -53,8 +61,8 @@ export default function Deals() {
     queryKey: ['deals', search, stageFilter, ownerFilter],
     queryFn: () => getDeals({
       search,
-      stage:   stageFilter || undefined,
-      ownerId: ownerFilter || undefined,
+      stage:   stageFilter === '__all__' ? undefined : stageFilter,
+      ownerId: ownerFilter === '__all__' ? undefined : ownerFilter,
     }),
   });
 
@@ -63,6 +71,22 @@ export default function Deals() {
     queryFn: getProfiles,
     enabled: isAdmin,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('deals-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
+        qc.invalidateQueries({ queryKey: ['deals'] });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'companies' }, () => {
+        qc.invalidateQueries({ queryKey: ['deals'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteDeal(deleting!.id),
@@ -80,7 +104,10 @@ export default function Deals() {
   return (
     <DashboardLayout>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Negócios</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Negócios</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Oportunidades comerciais por conta e estágio</p>
+        </div>
         <Can admin>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1.5" /> Criar negócio
@@ -104,7 +131,7 @@ export default function Deals() {
             <SelectValue placeholder="Todos os estágios" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todos os estágios</SelectItem>
+            <SelectItem value="__all__">Todos os estágios</SelectItem>
             {DEAL_STAGES.map((s) => (
               <SelectItem key={s} value={s}>{s}</SelectItem>
             ))}
@@ -116,7 +143,7 @@ export default function Deals() {
               <SelectValue placeholder="Todos os responsáveis" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos os responsáveis</SelectItem>
+              <SelectItem value="__all__">Todos os responsáveis</SelectItem>
               {profiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.name ?? p.id}</SelectItem>
               ))}
@@ -167,11 +194,21 @@ export default function Deals() {
                 </TableCell>
                 <TableCell className="text-muted-foreground">{d.funnel?.name ?? '—'}</TableCell>
                 <TableCell>{d.contact?.name ?? '—'}</TableCell>
-                <TableCell>{d.company?.name ?? '—'}</TableCell>
+                <TableCell>
+                  {d.company ? (
+                    <button
+                      type="button"
+                      className="text-left font-medium hover:text-primary hover:underline"
+                      onClick={() => navigate(`/crm/empresas/${d.company!.id}`)}
+                    >
+                      {d.company.name}
+                    </button>
+                  ) : '—'}
+                </TableCell>
                 <TableCell>{d.owner?.name ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {d.expected_close
-                    ? format(new Date(d.expected_close), 'dd/MM/yyyy', { locale: ptBR })
+                    ? formatDateOnly(d.expected_close)
                     : '—'}
                 </TableCell>
                 <TableCell>

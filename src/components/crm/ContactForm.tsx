@@ -19,6 +19,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contact?: Contact | null;
+  defaultCompanyId?: string;
 }
 
 interface FormState {
@@ -35,7 +36,9 @@ const EMPTY: FormState = {
   name: '', role: '', email: '', whatsapp: '', company_id: '', source: '', owner_id: '',
 };
 
-export function ContactForm({ open, onOpenChange, contact }: Props) {
+const NO_SOURCE = '__none__';
+
+export function ContactForm({ open, onOpenChange, contact, defaultCompanyId = '' }: Props) {
   const qc = useQueryClient();
   const { profile, isAdmin } = useAuth();
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -63,9 +66,9 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
         owner_id:   contact.owner_id,
       });
     } else {
-      setForm({ ...EMPTY, owner_id: profile?.id ?? '' });
+      setForm({ ...EMPTY, company_id: defaultCompanyId, owner_id: profile?.id ?? '' });
     }
-  }, [contact, profile?.id, open]);
+  }, [contact, defaultCompanyId, profile?.id, open]);
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -87,6 +90,7 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contacts'] });
+      if (form.company_id) qc.invalidateQueries({ queryKey: ['contacts-by-company', form.company_id] });
       toast.success(contact ? 'Contato atualizado.' : 'Contato criado.');
       onOpenChange(false);
     },
@@ -112,7 +116,7 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
             <Input id="ct-name" value={form.name} onChange={set('name')} required />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ct-role">Cargo</Label>
               <Input id="ct-role" value={form.role} onChange={set('role')} placeholder="Ex: Diretor" />
@@ -123,7 +127,7 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ct-whatsapp">WhatsApp</Label>
               <Input id="ct-whatsapp" value={form.whatsapp} onChange={set('whatsapp')} placeholder="+55 11 9..." />
@@ -131,11 +135,12 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
             <div className="space-y-1.5">
               <Label>Fonte</Label>
               <Select
-                value={form.source}
-                onValueChange={(v) => setForm((p) => ({ ...p, source: v }))}
+                value={form.source || NO_SOURCE}
+                onValueChange={(v) => setForm((p) => ({ ...p, source: v === NO_SOURCE ? '' : v }))}
               >
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={NO_SOURCE}>— Não informado —</SelectItem>
                   {CONTACT_SOURCES.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
@@ -147,12 +152,12 @@ export function ContactForm({ open, onOpenChange, contact }: Props) {
           <div className="space-y-1.5">
             <Label>Empresa vinculada</Label>
             <Select
-              value={form.company_id}
-              onValueChange={(v) => setForm((p) => ({ ...p, company_id: v }))}
+              value={form.company_id || '__none__'}
+              onValueChange={(v) => setForm((p) => ({ ...p, company_id: v === '__none__' ? '' : v }))}
             >
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— Nenhuma —</SelectItem>
+                <SelectItem value="__none__">— Nenhuma —</SelectItem>
                 {companies.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, Upload, Search, Pencil, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -20,16 +21,18 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getContacts, deleteContact, getProfiles } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import type { Contact } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Contacts() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
   const [search, setSearch] = useState('');
-  const [ownerFilter, setOwnerFilter] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('__all__');
   const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -37,7 +40,7 @@ export default function Contacts() {
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ['contacts', search, ownerFilter],
-    queryFn: () => getContacts({ search, ownerId: ownerFilter || undefined }),
+    queryFn: () => getContacts({ search, ownerId: ownerFilter === '__all__' ? undefined : ownerFilter }),
   });
 
   const { data: profiles = [] } = useQuery({
@@ -46,8 +49,24 @@ export default function Contacts() {
     enabled: isAdmin,
   });
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('contacts-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+        qc.invalidateQueries({ queryKey: ['contacts'] });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'companies' }, () => {
+        qc.invalidateQueries({ queryKey: ['contacts'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
+
   const deleteMutation = useMutation({
-    mutationFn: () => deleteContact(deleting!.id),
+    mutationFn: (id: string) => deleteContact(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['contacts'] });
       toast.success('Contato removido.');
@@ -56,13 +75,21 @@ export default function Contacts() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  function confirmDelete() {
+    if (!deleting) return;
+    deleteMutation.mutate(deleting.id);
+  }
+
   function openCreate() { setEditing(null); setFormOpen(true); }
   function openEdit(c: Contact) { setEditing(c); setFormOpen(true); }
 
   return (
     <DashboardLayout>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Contatos</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Contatos</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Pessoas ligadas às contas e oportunidades</p>
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4 mr-1.5" /> Importar CSV
@@ -92,7 +119,7 @@ export default function Contacts() {
               <SelectValue placeholder="Todos os responsáveis" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos os responsáveis</SelectItem>
+              <SelectItem value="__all__">Todos os responsáveis</SelectItem>
               {profiles.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.name ?? p.id}</SelectItem>
               ))}
@@ -137,7 +164,17 @@ export default function Contacts() {
                 <TableCell className="text-muted-foreground">{c.role ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground">{c.email ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground">{c.whatsapp ?? '—'}</TableCell>
-                <TableCell>{c.company?.name ?? '—'}</TableCell>
+                <TableCell>
+                  {c.company ? (
+                    <button
+                      type="button"
+                      className="text-left font-medium hover:text-primary hover:underline"
+                      onClick={() => navigate(`/crm/empresas/${c.company!.id}`)}
+                    >
+                      {c.company.name}
+                    </button>
+                  ) : '—'}
+                </TableCell>
                 <TableCell>{c.owner?.name ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR })}
@@ -178,8 +215,8 @@ export default function Contacts() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
-              onClick={() => deleteMutation.mutate()}
-              disabled={deleteMutation.isPending}
+              onClick={confirmDelete}
+              disabled={deleteMutation.isPending || !deleting}
             >
               {deleteMutation.isPending ? 'Removendo…' : 'Remover'}
             </AlertDialogAction>

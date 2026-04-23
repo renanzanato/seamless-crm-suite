@@ -1,4 +1,5 @@
 import { AppSidebar } from "./AppSidebar";
+import { CROCopilot } from "./CROCopilot";
 import { TopBar } from "./TopBar";
 
 interface DashboardLayoutProps {
@@ -14,6 +15,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main className="flex-1 p-6 overflow-auto">
           {children}
         </main>
+        <CROCopilot />
       </div>
     </div>
   );

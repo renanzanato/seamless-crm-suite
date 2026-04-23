@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pipa Driven</title>
+  <link rel="stylesheet" href="./popup.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="brand-logo">P</div>
+      <div>
+        <div class="brand-name">Pipa Driven</div>
+        <div class="brand-sub">Espelho WhatsApp &harr; CRM</div>
+      </div>
+    </div>
+    <div class="status-dot" id="status-dot" title="Status"></div>
+  </header>
+
+  <section class="banner" id="banner">
+    <span class="banner-icon">&#9679;</span>
+    <span id="banner-text">Conectando&hellip;</span>
+  </section>
+
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-value" id="stat-today">0</div>
+      <div class="stat-label">Hoje</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-chats">0</div>
+      <div class="stat-label">Chats ativos</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="stat-pending">0</div>
+      <div class="stat-label">Pendentes</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Status</div>
+    <ul class="status-list">
+      <li><span class="dot ok"></span><span>Captura WhatsApp</span><span class="status-val" id="s-capture">&mdash;</span></li>
+      <li><span class="dot ok"></span><span>Sync Supabase</span><span class="status-val" id="s-supabase">&mdash;</span></li>
+      <li><span class="dot" id="dot-outbox"></span><span>Outbox CRM</span><span class="status-val" id="s-outbox">&mdash;</span></li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <div class="section-label">Chat atual</div>
+    <div class="current-chat" id="current-chat">
+      <div class="muted">Abra uma conversa no WhatsApp Web</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <button class="btn-primary" id="btn-open-crm">Abrir CRM</button>
+  </footer>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

@@ -1,24 +1,7 @@
 import { motion } from "framer-motion";
-import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from "recharts";
 import { ChevronDown } from "lucide-react";
-import { useTheme } from "@/hooks/use-theme";
-
-const data = [
-  { day: "Dom", value: 2200 },
-  { day: "Seg", value: 2800 },
-  { day: "Ter", value: 3874 },
-  { day: "Qua", value: 2100 },
-  { day: "Qui", value: 2600 },
-  { day: "Sex", value: 3200 },
-  { day: "Sáb", value: 2400 },
-];
 
 export function TotalSubscriberChart() {
-  const { theme } = useTheme();
-  const activeColor = theme === "dark" ? "#FF8A00" : "#FF8A1E";
-  const inactiveColor = theme === "dark" ? "rgba(255, 138, 0, 0.15)" : "rgba(255, 138, 30, 0.2)";
-  const tickColor = theme === "dark" ? "#A0A0A0" : "#6B6B6B";
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -34,36 +17,11 @@ export function TotalSubscriberChart() {
       </div>
 
       <div className="flex items-end gap-3 mb-4">
-        <span className="text-3xl font-bold text-foreground">24.473</span>
-      </div>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="badge-success">↗ 8,3%</span>
-        <span className="text-xs text-muted-foreground">+ 749 aumento</span>
+        <span className="text-3xl font-bold text-foreground">–</span>
       </div>
 
-      <ResponsiveContainer width="100%" height={140}>
-        <BarChart data={data} barSize={24}>
-          <XAxis
-            dataKey="day"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fontSize: 11, fill: tickColor }}
-          />
-          <Bar dataKey="value" radius={[4, 4, 4, 4]}>
-            {data.map((entry, index) => (
-              <Cell
-                key={index}
-                fill={entry.day === "Ter" ? activeColor : inactiveColor}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-
-      <div className="relative -mt-[140px] h-[140px] pointer-events-none">
-        <div className="absolute left-[33%] top-1 text-xs font-semibold text-foreground bg-card border border-border px-1.5 py-0.5 rounded shadow-sm">
-          3.874
-        </div>
+      <div className="flex items-center justify-center h-[140px] text-sm text-muted-foreground">
+        Sem dados
       </div>
     </motion.div>
   );

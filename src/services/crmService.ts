@@ -44,6 +44,79 @@ export async function getCompanies(params: { search?: string; ownerId?: string }
   return (data ?? []) as Company[];
 }
 
+export type CompanySortKey = 'name' | 'icp_score' | 'vgv_projected' | 'monthly_media_spend' | 'created_at';
+
+export interface CompaniesPageParams {
+  search?: string;
+  ownerId?: string;
+  signal?: string;
+  launch?: 'active' | 'upcoming';
+  status?: string;
+  city?: string;
+  segment?: string;
+  state?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: CompanySortKey;
+  ascending?: boolean;
+}
+
+export interface CompaniesPageResult {
+  data: Company[];
+  count: number;
+}
+
+export async function getCompaniesPage(params: CompaniesPageParams = {}): Promise<CompaniesPageResult> {
+  const pageSize = params.pageSize ?? 25;
+  const page = Math.max(params.page ?? 1, 1);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const sortBy = params.sortBy ?? 'name';
+
+  let q = supabase
+    .from('companies')
+    .select(COMPANY_SELECT, { count: 'exact' });
+
+  if (params.search) {
+    const term = params.search.replace(/[%,]/g, '').trim();
+    if (term) q = q.or(`name.ilike.%${term}%,city.ilike.%${term}%,segment.ilike.%${term}%`);
+  }
+  if (params.ownerId) q = q.eq('owner_id', params.ownerId);
+  if (params.signal && params.signal !== '__all__') q = q.eq('buying_signal', params.signal);
+  if (params.status && params.status !== '__all__') q = q.eq('status', params.status);
+  if (params.launch === 'active') q = q.eq('has_active_launch', true);
+  if (params.launch === 'upcoming') q = q.eq('upcoming_launch', true);
+  if (params.city && params.city !== '__all__') q = q.eq('city', params.city);
+  if (params.segment && params.segment !== '__all__') q = q.eq('segment', params.segment);
+  if (params.state && params.state !== '__all__') q = q.eq('state', params.state);
+
+  const { data, error, count } = await q
+    .order(sortBy, { ascending: params.ascending ?? sortBy === 'name' })
+    .range(from, to);
+  if (error) throw error;
+  return { data: (data ?? []) as Company[], count: count ?? 0 };
+}
+
+export async function getCompanyFilterOptions(): Promise<{
+  cities: string[];
+  states: string[];
+  segments: string[];
+}> {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('city, state, segment')
+    .order('city');
+  if (error) throw error;
+  const rows = data ?? [];
+  const unique = <T>(arr: (T | null | undefined)[]) =>
+    [...new Set(arr.filter((v): v is T => v != null && v !== ''))].sort() as T[];
+  return {
+    cities: unique(rows.map((r) => r.city)),
+    states: unique(rows.map((r) => r.state)),
+    segments: unique(rows.map((r) => r.segment)),
+  };
+}
+
 export async function createCompany(payload: Omit<Company, 'id' | 'created_at' | 'owner'>): Promise<Company> {
   return throwOnError(
     await supabase.from('companies').insert(payload).select(COMPANY_SELECT).single()
@@ -71,6 +144,16 @@ export async function getContacts(params: { search?: string; ownerId?: string } 
   if (params.ownerId) q = q.eq('owner_id', params.ownerId);
 
   const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as Contact[];
+}
+
+export async function getContactsByCompany(companyId: string): Promise<Contact[]> {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select(CONTACT_SELECT)
+    .eq('company_id', companyId)
+    .order('name');
   if (error) throw error;
   return (data ?? []) as Contact[];
 }

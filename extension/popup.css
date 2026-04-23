@@ -1,0 +1,301 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f0f0f;
+  color: #e5e5e5;
+  font-size: 13px;
+}
+
+.hidden { display: none !important; }
+
+/* ── Logo ────────────────────────────── */
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: #f97316;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+}
+
+.logo-icon-sm {
+  width: 28px;
+  height: 28px;
+  background: #f97316;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f97316;
+}
+
+.logo-sub {
+  font-size: 14px;
+  font-weight: 500;
+  font-style: italic;
+  color: #fb923c;
+  margin-left: 3px;
+}
+
+.subtitle {
+  color: #737373;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+/* ── Screen ──────────────────────────── */
+
+.screen {
+  padding: 20px;
+}
+
+/* ── Form ────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form input {
+  padding: 10px 12px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: #e5e5e5;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form input:focus {
+  border-color: #f97316;
+}
+
+.form button,
+.btn-primary {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: #f97316;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.form button:hover,
+.btn-primary:hover {
+  background: #ea580c;
+}
+
+.form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #ef4444;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.footer-text {
+  color: #525252;
+  font-size: 10px;
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* ── Header ──────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.user-role {
+  font-size: 10px;
+  color: #737373;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-ghost {
+  background: none;
+  border: 1px solid #333;
+  color: #a3a3a3;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* ── Status Card ─────────────────────── */
+
+.status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #1a1a1a;
+  border: 1px solid #262626;
+  margin-bottom: 16px;
+}
+
+.status-card.active {
+  border-color: #22c55e30;
+  background: #22c55e08;
+}
+
+.status-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #22c55e20;
+  color: #22c55e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.status-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+
+.status-desc {
+  font-size: 11px;
+  color: #737373;
+  line-height: 1.4;
+}
+
+/* ── Instructions ────────────────────── */
+
+.instructions {
+  margin-bottom: 16px;
+}
+
+.instructions h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #525252;
+  margin-bottom: 8px;
+}
+
+.instructions ol {
+  padding-left: 16px;
+}
+
+.instructions li {
+  font-size: 12px;
+  color: #a3a3a3;
+  line-height: 1.6;
+}
+
+.instructions li strong {
+  color: #e5e5e5;
+}
+
+.automation-toggles {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  color: #a3a3a3;
+}
+
+.automation-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.automation-metrics {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #a3a3a3;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+/* ── Stats ────────────────────────────── */
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat {
+  padding: 10px;
+  border-radius: 8px;
+  background: #1a1a1a;
+  border: 1px solid #262626;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f97316;
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #737373;
+  margin-top: 2px;
+}

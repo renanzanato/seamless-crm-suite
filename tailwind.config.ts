@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -109,6 +110,12 @@ export default {
           from: { opacity: "0", transform: "scale(0.95)" },
           to: { opacity: "1", transform: "scale(1)" },
         },
+        "flame": {
+          "0%, 100%": { transform: "scale(1) rotate(-4deg)" },
+          "25%": { transform: "scale(1.12) rotate(2deg)" },
+          "50%": { transform: "scale(1.18) rotate(4deg)" },
+          "75%": { transform: "scale(1.08) rotate(-2deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -116,8 +123,9 @@ export default {
         "fade-in": "fade-in 0.4s ease-out forwards",
         "slide-in-left": "slide-in-left 0.3s ease-out forwards",
         "scale-in": "scale-in 0.3s ease-out forwards",
+        "flame": "flame 1.2s ease-in-out infinite",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

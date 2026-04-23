@@ -17,13 +17,14 @@ export interface Stage {
 
 export interface Deal {
   id: string;
-  name: string;
-  company: string | null;
-  value: number;
-  assignee_id: string | null;
-  assignee_name: string | null;
+  title: string;
+  value: number | null;
   stage_id: string | null;
   funnel_id: string | null;
+  contact_id: string | null;
+  company_id: string | null;
+  owner_id: string;
+  expected_close: string | null;
   created_at: string;
 }
 
@@ -104,6 +105,15 @@ export async function deleteStage(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function reorderStages(orderedIds: string[]): Promise<void> {
+  const updates = orderedIds.map((id, index) =>
+    supabase.from('stages').update({ order: index }).eq('id', id)
+  );
+  const results = await Promise.all(updates);
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}
+
 // ── Deals ────────────────────────────────────────────────────
 
 export async function getDeals(funnelId: string): Promise<Deal[]> {
@@ -113,6 +123,67 @@ export async function getDeals(funnelId: string): Promise<Deal[]> {
     .eq('funnel_id', funnelId);
   if (error) throw error;
   return data ?? [];
+}
+
+// ── Stage automations ────────────────────────────────────────
+
+export interface StageAutomation {
+  id: string;
+  from_stage: string;
+  to_funnel: string;
+  to_stage: string;
+  active: boolean;
+  created_at: string;
+}
+
+export async function getAutomationsForFunnel(funnelId: string): Promise<StageAutomation[]> {
+  const { data, error } = await supabase
+    .from('stage_automations')
+    .select('*, from:stages!stage_automations_from_stage_fkey(funnel_id)')
+    .eq('from.funnel_id', funnelId);
+  if (error) throw error;
+  return (data ?? []) as StageAutomation[];
+}
+
+export async function getAutomationForStage(stageId: string): Promise<StageAutomation | null> {
+  const { data, error } = await supabase
+    .from('stage_automations')
+    .select('*')
+    .eq('from_stage', stageId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertAutomation(params: {
+  from_stage: string;
+  to_funnel: string;
+  to_stage: string;
+  active?: boolean;
+}): Promise<StageAutomation> {
+  const { data, error } = await supabase
+    .from('stage_automations')
+    .upsert(
+      {
+        from_stage: params.from_stage,
+        to_funnel: params.to_funnel,
+        to_stage: params.to_stage,
+        active: params.active ?? true,
+      },
+      { onConflict: 'from_stage' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteAutomation(fromStageId: string): Promise<void> {
+  const { error } = await supabase
+    .from('stage_automations')
+    .delete()
+    .eq('from_stage', fromStageId);
+  if (error) throw error;
 }
 
 // ── Move deal between stages ─────────────────────────────────

@@ -1,4 +1,5 @@
 import { Search, Calendar, Bell, PlusCircle } from "lucide-react";
+import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function TopBar() {
@@ -21,16 +22,16 @@ export function TopBar() {
       {/* Actions */}
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
+        <Link to="/calendario" className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
           <Calendar className="h-5 w-5" />
-        </button>
+        </Link>
         <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary relative">
           <Bell className="h-5 w-5" />
           <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-primary rounded-full" />
         </button>
-        <button className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
+        <Link to="/crm/empresas" className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-primary">
           <PlusCircle className="h-5 w-5" />
-        </button>
+        </Link>
 
         <div className="h-8 w-px bg-border mx-1" />
 

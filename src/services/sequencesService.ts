@@ -14,12 +14,16 @@ export async function listFunnels(): Promise<Funnel[]> {
 
 export async function listStages(funnelId: string): Promise<FunnelStage[]> {
   const { data, error } = await supabase
-    .from('funnel_stages')
-    .select('id, funnel_id, name, position')
+    .from('stages')
+    .select('id, funnel_id, name, "order"')
     .eq('funnel_id', funnelId)
-    .order('position');
+    .order('order');
   if (error) throw error;
-  return data ?? [];
+
+  type StageRow = Omit<FunnelStage, 'position'> & { order: number };
+
+  // normalize: map 'order' → 'position' for type compatibility
+  return ((data ?? []) as StageRow[]).map(({ order, ...stage }) => ({ ...stage, position: order }));
 }
 
 // ── Sequences ────────────────────────────────────────────
@@ -30,7 +34,7 @@ export async function listSequences(): Promise<Sequence[]> {
     .select(`
       id, name, funnel_id, stage_id, active, created_at,
       funnel:funnels(id, name),
-      stage:funnel_stages(id, name),
+      stage:stages(id, name),
       steps:sequence_steps(id, sequence_id, position, channel, delay_days, template)
     `)
     .order('created_at', { ascending: false });
@@ -44,7 +48,7 @@ export async function getSequence(id: string): Promise<Sequence> {
     .select(`
       id, name, funnel_id, stage_id, active, created_at,
       funnel:funnels(id, name),
-      stage:funnel_stages(id, name),
+      stage:stages(id, name),
       steps:sequence_steps(id, sequence_id, position, channel, delay_days, template)
     `)
     .eq('id', id)

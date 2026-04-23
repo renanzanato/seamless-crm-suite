@@ -21,6 +21,32 @@ export interface Funnel {
   created_at: string;
 }
 
+export type BuyingSignal = 'hot' | 'warm' | 'cold';
+export type CompanyStatus = 'new' | 'prospecting' | 'contacted' | 'meeting_booked' | 'proposal' | 'customer' | 'lost';
+export type SalesModel = 'internal' | 'external' | 'hybrid';
+export type ScoreTier = 'A' | 'B' | 'C';
+
+export interface CompanyLaunch {
+  id: string;
+  company_id: string;
+  name: string;
+  status: 'active' | 'upcoming' | 'sold_out' | 'cancelled';
+  launch_date: string | null;
+  delivery_date: string | null;
+  units_total: number | null;
+  units_sold: number | null;
+  vgv: number | null;
+  price_per_sqm: number | null;
+  address: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  website_url: string | null;
+  landing_page_url: string | null;
+  instagram_url: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -30,6 +56,29 @@ export interface Company {
   website: string | null;
   owner_id: string;
   created_at: string;
+  // ABM / Intelligence
+  status: CompanyStatus;
+  score_tier: ScoreTier;
+  buying_signal: BuyingSignal;
+  icp_score: number;
+  sales_model: SalesModel | null;
+  has_active_launch: boolean;
+  upcoming_launch: boolean;
+  launch_count_year: number;
+  vgv_projected: number | null;
+  monthly_media_spend: number | null;
+  cadence_status: string;
+  cadence_day: number;
+  cadence_started_at: string | null;
+  last_interaction_at: string | null;
+  linkedin_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  connection_count: number;
+  domain: string | null;
+  employees_count: number | null;
+  founded_year: number | null;
+  state: string | null;
   owner?: Pick<Profile, 'id' | 'name'> | null;
 }
 

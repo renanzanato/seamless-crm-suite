@@ -1,0 +1,1185 @@
+/* ──────────────────────────────────────────────────────── */
+/* Pipa Driven v3 — Monitor + Tasks                       */
+/* Interface minimalista, nivel pro                        */
+/* ──────────────────────────────────────────────────────── */
+
+/* ── Sidebar ────────────────────────────────────────── */
+
+#pipa-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 100vh;
+  z-index: 99999;
+  background: #0a0a0a;
+  border-right: 1px solid #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 2px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.pipa-sb-logo {
+  padding: 8px;
+  margin-bottom: 4px;
+  cursor: default;
+}
+
+.pipa-sb-divider {
+  width: 28px;
+  height: 1px;
+  background: #262626;
+  margin: 4px 0;
+}
+
+.pipa-sb-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #737373;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.pipa-sb-btn:hover {
+  background: #1a1a1a;
+  color: #e5e5e5;
+}
+
+.pipa-sb-btn.active {
+  background: #f97316;
+  color: #fff;
+}
+
+.pipa-sb-btn.active:hover {
+  background: #ea580c;
+}
+
+.pipa-sb-btn.pipa-sb-busy {
+  background: #1a1a1a;
+  opacity: 0.7;
+  cursor: wait;
+  animation: pipa-pulse 1.2s ease-in-out infinite;
+}
+
+/* Toast lançado pelo sidebar */
+.pipa-sb-toast {
+  position: fixed;
+  left: 72px;
+  bottom: 20px;
+  z-index: 2147483647;
+  max-width: 340px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #1f2937;
+  color: #fff;
+  font: 500 13px/1.4 "Segoe UI", sans-serif;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.pipa-sb-toast.show { opacity: 1; transform: translateY(0); }
+.pipa-sb-toast.ok  { border-left: 3px solid #22c55e; }
+.pipa-sb-toast.err { border-left: 3px solid #ef4444; }
+
+/* Monitor green dot */
+.pipa-sb-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  display: none;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.6);
+}
+
+.pipa-sb-dot.active {
+  display: block;
+  animation: pipa-pulse 2s ease-in-out infinite;
+}
+
+/* Tasks badge */
+.pipa-sb-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.pipa-sb-badge.active {
+  display: flex;
+}
+
+.pipa-sb-spacer {
+  flex: 1;
+}
+
+.pipa-sb-user {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #262626;
+  color: #a3a3a3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 8px 0;
+  cursor: default;
+}
+
+/* ── Panel Container ─────────────────────────────────── */
+
+#pipa-panel-container {
+  position: fixed;
+  top: 0;
+  left: 48px;
+  width: 340px;
+  height: 100vh;
+  z-index: 99998;
+  background: #111111;
+  border-right: 1px solid #1e1e1e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+#pipa-panel-container.pipa-panel-closed {
+  transform: translateX(-340px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#pipa-panel-container.pipa-panel-open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* ── Panel Header ────────────────────────────────────── */
+
+.pipa-ph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1e1e1e;
+  background: #0a0a0a;
+  flex-shrink: 0;
+}
+
+.pipa-ph-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pipa-ph-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e5e5e5;
+}
+
+.pipa-ph-sub {
+  font-size: 11px;
+  color: #737373;
+}
+
+.pipa-ph-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #737373;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.pipa-ph-close:hover {
+  background: #262626;
+  color: #e5e5e5;
+}
+
+/* ── Panel Body ──────────────────────────────────────── */
+
+.pipa-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.pipa-panel-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.pipa-panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pipa-panel-body::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+.pipa-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* ── Info Box ────────────────────────────────────────── */
+
+.pipa-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #1a1a1a;
+  border: 1px solid #262626;
+}
+
+.pipa-info-icon {
+  color: #f97316;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pipa-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e5e5e5;
+  margin: 0;
+}
+
+.pipa-info-desc {
+  font-size: 11px;
+  color: #737373;
+  margin: 2px 0 0;
+  line-height: 1.4;
+}
+
+/* ── Monitor Card ────────────────────────────────────── */
+
+.pipa-monitor-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #1a1a1a;
+  border: 1px solid #262626;
+}
+
+.pipa-monitor-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f97316;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pipa-monitor-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipa-monitor-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e5e5e5;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipa-monitor-sub {
+  font-size: 11px;
+  color: #525252;
+  margin: 2px 0 0;
+}
+
+.pipa-monitor-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pipa-monitor-meta-card {
+  padding: 10px;
+  border-radius: 10px;
+  background: #131313;
+  border: 1px solid #202020;
+  min-width: 0;
+}
+
+.pipa-monitor-meta-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #525252;
+}
+
+.pipa-monitor-meta-value {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #d4d4d8;
+  word-break: break-word;
+}
+
+/* ── Toggle Switch ───────────────────────────────────── */
+
+.pipa-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+}
+
+.pipa-toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a3a3a3;
+}
+
+.pipa-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.pipa-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.pipa-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #333;
+  border-radius: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pipa-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #e5e5e5;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.pipa-toggle input:checked + .pipa-toggle-slider {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+}
+
+.pipa-toggle input:checked + .pipa-toggle-slider::before {
+  transform: translateX(20px);
+  background: #fff;
+}
+
+/* ── Capture Status ──────────────────────────────────── */
+
+.pipa-capture-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.pipa-capture-status.on {
+  background: #22c55e10;
+  border: 1px solid #22c55e20;
+}
+
+.pipa-capture-status.off {
+  background: #1a1a1a;
+  border: 1px solid #1e1e1e;
+}
+
+.pipa-capture-pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+  animation: pipa-pulse 2s ease-in-out infinite;
+}
+
+.pipa-capture-dot-off {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #525252;
+  flex-shrink: 0;
+}
+
+.pipa-capture-status-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.pipa-capture-status.on .pipa-capture-status-label {
+  color: #22c55e;
+}
+
+.pipa-capture-status.off .pipa-capture-status-label {
+  color: #525252;
+}
+
+.pipa-capture-meta {
+  font-size: 10px;
+  color: #737373;
+  margin: 1px 0 0;
+}
+
+/* ── Tracked Contacts List ───────────────────────────── */
+
+.pipa-tracked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pipa-tracked-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+  transition: all 0.15s;
+}
+
+.pipa-tracked-item.current {
+  border-color: #f9731630;
+  background: #f9731608;
+}
+
+.pipa-tracked-dot-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+.pipa-tracked-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipa-tracked-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e5e5e5;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipa-tracked-meta {
+  font-size: 10px;
+  color: #525252;
+  display: block;
+  margin-top: 1px;
+}
+
+.pipa-tracked-remove {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #525252;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.pipa-tracked-remove:hover {
+  background: #ef444420;
+  color: #ef4444;
+}
+
+/* ── Divider Label ───────────────────────────────────── */
+
+.pipa-divider-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.pipa-divider-label::before,
+.pipa-divider-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #262626;
+}
+
+.pipa-divider-label span {
+  font-size: 10px;
+  color: #525252;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.pipa-btn {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: inherit;
+}
+
+.pipa-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pipa-btn-primary {
+  background: #f97316;
+  color: #fff;
+}
+
+.pipa-btn-primary:hover:not(:disabled) {
+  background: #ea580c;
+}
+
+.pipa-btn-secondary {
+  background: #1a1a1a;
+  color: #e5e5e5;
+  border: 1px solid #333;
+}
+
+.pipa-btn-secondary:hover:not(:disabled) {
+  background: #262626;
+}
+
+.pipa-btn-sm {
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  background: #262626;
+  color: #a3a3a3;
+  border: 1px solid #333;
+}
+
+.pipa-btn-sm:hover {
+  background: #333;
+  color: #e5e5e5;
+}
+
+.pipa-btn-secondary.danger {
+  border-color: #4b1d1d;
+  color: #fca5a5;
+}
+
+.pipa-btn-secondary.danger:hover:not(:disabled) {
+  background: #2a1111;
+  color: #fecaca;
+}
+
+/* ── Form Elements ───────────────────────────────────── */
+
+.pipa-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #525252;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 4px;
+}
+
+.pipa-search-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pipa-search-row .pipa-btn {
+  flex-shrink: 0;
+}
+
+.pipa-input {
+  flex: 1;
+  min-width: 0;
+  background: #0f0f0f;
+  border: 1px solid #262626;
+  border-radius: 8px;
+  color: #e5e5e5;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.pipa-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 1px #f97316;
+}
+
+.pipa-input::placeholder {
+  color: #525252;
+}
+
+.pipa-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pipa-result-item {
+  width: 100%;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  background: #151515;
+  padding: 10px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pipa-result-item:hover {
+  border-color: #3f3f46;
+  background: #1a1a1a;
+}
+
+.pipa-result-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e5e5e5;
+}
+
+.pipa-result-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #737373;
+}
+
+.pipa-selection-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #151515;
+  border: 1px solid #262626;
+}
+
+.pipa-selection-card.ghost {
+  background: #111111;
+  border-style: dashed;
+}
+
+.pipa-selection-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pipa-selection-icon {
+  color: #fdba74;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pipa-selection-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e5e5e5;
+}
+
+.pipa-selection-sub {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: #737373;
+  line-height: 1.4;
+}
+
+.pipa-chip-btn {
+  border: 1px solid #333;
+  background: #202020;
+  color: #a3a3a3;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pipa-chip-btn:hover {
+  background: #2a2a2a;
+  color: #e5e5e5;
+}
+
+.pipa-banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.pipa-banner.info {
+  background: #1d2438;
+  color: #bfdbfe;
+  border-color: #25314d;
+}
+
+.pipa-banner.success {
+  background: #11281b;
+  color: #86efac;
+  border-color: #1c4029;
+}
+
+.pipa-banner.error {
+  background: #301414;
+  color: #fca5a5;
+  border-color: #492020;
+}
+
+.pipa-loading-inline {
+  font-size: 11px;
+  color: #737373;
+  padding: 2px 2px 0;
+}
+
+.pipa-action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pipa-info-box.compact {
+  padding: 10px 12px;
+}
+
+@media (max-width: 420px) {
+  .pipa-monitor-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Signal Badges ───────────────────────────────────── */
+
+.pipa-signal {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.pipa-signal.hot {
+  background: #ef444420;
+  color: #ef4444;
+}
+
+.pipa-signal.warm {
+  background: #f59e0b20;
+  color: #f59e0b;
+}
+
+.pipa-signal.cold {
+  background: #3b82f620;
+  color: #3b82f6;
+}
+
+/* ── Tasks ───────────────────────────────────────────── */
+
+.pipa-task-card {
+  padding: 12px;
+  border-radius: 10px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+  margin-bottom: 8px;
+  transition: opacity 0.3s;
+}
+
+.pipa-task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pipa-task-urgency {
+  font-size: 9px;
+  font-weight: 800;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.pipa-task-body {
+  margin-bottom: 8px;
+}
+
+.pipa-task-company {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e5e5e5;
+  margin: 0 0 4px;
+}
+
+.pipa-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pipa-task-type {
+  font-size: 11px;
+  color: #fdba74;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pipa-task-persona {
+  font-size: 10px;
+  color: #737373;
+  background: #262626;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.pipa-task-day {
+  font-size: 10px;
+  color: #f97316;
+  font-weight: 700;
+}
+
+.pipa-task-message {
+  padding: 8px;
+  border-radius: 6px;
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  margin-bottom: 8px;
+}
+
+.pipa-task-message p {
+  font-size: 11px;
+  color: #737373;
+  line-height: 1.4;
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+}
+
+.pipa-task-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.pipa-task-actions .pipa-btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 7px 10px;
+}
+
+/* ── Done State ──────────────────────────────────────── */
+
+.pipa-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.pipa-done-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #22c55e20;
+  color: #22c55e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pipa-done-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e5e5e5;
+  margin: 0;
+}
+
+.pipa-done-desc {
+  font-size: 11px;
+  color: #737373;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Error ────────────────────────────────────────────── */
+
+.pipa-error {
+  color: #ef4444;
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #ef444410;
+  margin: 0;
+}
+
+.pipa-no-results {
+  font-size: 11px;
+  color: #525252;
+  text-align: center;
+  padding: 12px;
+  margin: 0;
+}
+
+/* ── Loading / Spinner ───────────────────────────────── */
+
+.pipa-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+}
+
+.pipa-loading p {
+  font-size: 12px;
+  color: #737373;
+  margin: 0;
+}
+
+.pipa-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #262626;
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: pipa-spin 0.7s linear infinite;
+}
+
+/* ── Login Prompt ────────────────────────────────────── */
+
+#pipa-login-prompt {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99999;
+}
+
+.pipa-login-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #111;
+  border: 1px solid #262626;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.pipa-login-badge span {
+  font-size: 12px;
+  color: #a3a3a3;
+}
+
+.pipa-login-badge button {
+  background: none;
+  border: none;
+  color: #525252;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+
+.pipa-login-badge button:hover {
+  color: #e5e5e5;
+}
+
+/* ── Match Cards ─────────────────────────────────────── */
+
+.pipa-match-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #262626;
+  background: #1a1a1a;
+}
+
+.pipa-match-card.found {
+  border-color: #22c55e30;
+  background: #22c55e08;
+}
+
+.pipa-match-card.warn {
+  border-color: #f59e0b30;
+  background: #f59e0b08;
+}
+
+.pipa-match-card.notfound {
+  border-color: #ef444430;
+  background: #ef444408;
+}
+
+.pipa-match-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pipa-match-dot.green {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+.pipa-match-dot.yellow {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+.pipa-match-dot.red {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
+}
+
+.pipa-match-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipa-match-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e5e5e5;
+  margin: 0;
+}
+
+.pipa-match-company {
+  font-size: 11px;
+  color: #737373;
+  margin: 2px 0 0;
+}
+
+.pipa-match-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+  font-size: 12px;
+  color: #737373;
+}
+
+/* ── Animations ──────────────────────────────────────── */
+
+@keyframes pipa-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pipa-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* ── Hidden helper ───────────────────────────────────── */
+
+.hidden {
+  display: none !important;
+}
