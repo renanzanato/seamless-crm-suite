@@ -38,6 +38,20 @@ O arquivo `supabase/whatsapp_conversations.sql` consolida o contrato do banco pa
 
 ## Ordem exata de execução no Supabase
 
+### 0. Auditar producao sem alterar dados
+
+Antes de aplicar qualquer fix em um banco ja usado, rode:
+
+`supabase/whatsapp_crm_readonly_audit.sql`
+
+Esse script:
+
+- inventaria tabelas, colunas, RPC, indexes e policies
+- aponta conversas/mensagens sem `chat_key`
+- aponta duplicatas por `chat_key` e `provider_message_id`
+- identifica tabelas legadas (`chats`, `monitored_chats`)
+- faz `rollback` ao final
+
 ### 1. Garantir pré-requisitos do CRM
 
 O projeto precisa já ter estas tabelas:
@@ -67,7 +81,20 @@ Esse script é idempotente e:
 - cria policies RLS
 - adiciona triggers de rollup do chat
 
-### 3. Rodar o smoke test autenticado
+### 3. Aplicar o fix de espelhamento por chat_key
+
+Se o CRM ja mostra conversas salvas, mas sem mensagens individuais, execute:
+
+`supabase/migrations/20260424_fix_whatsapp_ingest_chat_key.sql`
+
+Esse fix e o contrato usado pela extensao atual:
+
+- `p_chat.chat_key` vira o identificador canonico da conversa
+- `p_messages[].chat_key` e gravado em cada mensagem
+- `wa_chat_id` continua como compatibilidade legada
+- a RPC oficial permanece `public.ingest_whatsapp_chat(p_chat jsonb, p_messages jsonb)`
+
+### 4. Rodar os smoke tests autenticados
 
 No SQL Editor do Supabase, execute:
 
@@ -83,6 +110,12 @@ O smoke test:
 - valida leitura autenticada
 - valida bloqueio de duplicata
 - faz `rollback` no final
+
+Depois execute:
+
+`supabase/whatsapp_ingest_rpc_smoke_test.sql`
+
+Esse segundo smoke test chama a mesma RPC que a extensao usa, valida insert por `chat_key`, valida dedupe e tambem faz `rollback`.
 
 ## Fluxo operacional do MVP
 

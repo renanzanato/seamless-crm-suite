@@ -461,7 +461,7 @@ export async function fetchWhatsAppConversations(companyId?: string | null) {
 async function fetchWhatsAppMessages(conversation: WhatsAppConversation): Promise<MessageQueryResult> {
   async function runByChatKey(select: string) {
     if (!conversation.chatKey) return [];
-    let query = supabase
+    const query = supabase
       .from("whatsapp_messages")
       .select(select)
       .eq("chat_key", conversation.chatKey);
@@ -542,10 +542,13 @@ async function fetchWhatsAppMessages(conversation: WhatsAppConversation): Promis
     };
   }
 
+  const expectedCount = conversation.messageCount || 0;
   return {
     messages: [],
     source: "empty",
-    warning: "Conversa salva, mas sem mensagens individuais legiveis para exibir.",
+    warning: expectedCount > 0
+      ? `A conversa informa ${expectedCount} mensagem(ns), mas nenhuma linha legivel foi encontrada por chat_key. Valide a migration 20260424_fix_whatsapp_ingest_chat_key no Supabase.`
+      : "Conversa salva, mas sem mensagens individuais legiveis para exibir.",
   };
 }
 
@@ -812,10 +815,14 @@ function TimelineDetail({
           )}
         </div>
 
-        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-4">
           <div className="rounded-md bg-muted/35 p-2">
             <p className="text-muted-foreground">chat_key</p>
             <p className="truncate font-mono font-medium">{conversation.chatKey || "nao informado"}</p>
+          </div>
+          <div className="rounded-md bg-muted/35 p-2">
+            <p className="text-muted-foreground">ID WhatsApp</p>
+            <p className="truncate font-mono font-medium">{conversation.providerChatId || "nao informado"}</p>
           </div>
           <div className="rounded-md bg-muted/35 p-2">
             <p className="text-muted-foreground">Mensagens</p>

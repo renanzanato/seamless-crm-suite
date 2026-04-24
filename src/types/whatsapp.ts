@@ -49,3 +49,5 @@ export interface OutboxRow {
   created_at: string
   sent_at: string | null
 }
+
+export type OutboxMessage = OutboxRow

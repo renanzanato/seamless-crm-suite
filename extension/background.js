@@ -694,6 +694,13 @@ async function syncMessage(payload) {
       return { synced: true, data: row };
     }
 
+    await patchStats({
+      last_status: skipped > 0 ? "message_duplicate" : "message_noop",
+      last_error: null,
+      last_phone: phone,
+      last_contact_name: approvedContact.name,
+      last_sync_at: new Date().toISOString(),
+    });
     return { synced: false, duplicate: skipped > 0, data: row };
   } catch (error) {
     const stats = await getStats();
@@ -748,31 +755,43 @@ async function backfillChat(payload) {
   let inserted = 0;
   let skipped = 0;
 
-  for (let i = 0; i < incoming.length; i += CHUNK_SIZE) {
-    const chunk = incoming
-      .slice(i, i + CHUNK_SIZE)
-      .map((message) => mapMessageToRpc(message, chatJid, chatKey));
+  try {
+    for (let i = 0; i < incoming.length; i += CHUNK_SIZE) {
+      const chunk = incoming
+        .slice(i, i + CHUNK_SIZE)
+        .map((message) => mapMessageToRpc(message, chatJid, chatKey));
 
-    const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
-      method: "POST",
-      token: session.access_token,
-      body: { p_chat: chatPayload, p_messages: chunk },
+      const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
+        method: "POST",
+        token: session.access_token,
+        body: { p_chat: chatPayload, p_messages: chunk },
+      });
+
+      const row = Array.isArray(data) ? data[0] : data;
+      inserted += Number(row?.messages_inserted || 0);
+      skipped += Number(row?.messages_skipped || 0);
+    }
+
+    const stats = await getStats();
+    await patchStats({
+      synced: stats.synced + inserted,
+      last_status: inserted > 0 ? "message_synced" : "backfill_no_new",
+      last_error: null,
+      last_phone: phone,
+      last_contact_name: approvedContact.name,
+      last_sync_at: new Date().toISOString(),
     });
-
-    const row = Array.isArray(data) ? data[0] : data;
-    inserted += Number(row?.messages_inserted || 0);
-    skipped += Number(row?.messages_skipped || 0);
+  } catch (error) {
+    const stats = await getStats();
+    await patchStats({
+      failed: stats.failed + 1,
+      last_status: "backfill_failed",
+      last_error: error?.message || String(error),
+      last_phone: phone,
+      last_contact_name: approvedContact.name,
+    });
+    throw error;
   }
-
-  const stats = await getStats();
-  await patchStats({
-    synced: stats.synced + inserted,
-    last_status: inserted > 0 ? "message_synced" : "backfill_no_new",
-    last_error: null,
-    last_phone: phone,
-    last_contact_name: approvedContact.name,
-    last_sync_at: new Date().toISOString(),
-  });
 
   return { synced: true, inserted, skipped };
 }
@@ -794,6 +813,7 @@ async function getRuntimeStatus() {
       auth: `POST ${SUPABASE_URL}/auth/v1/token?grant_type=password`,
       contact_lookup: `GET ${SUPABASE_URL}/rest/v1/contacts?whatsapp=in.(+55...)`,
       message_sync: `POST ${SUPABASE_URL}/rest/v1/rpc/ingest_whatsapp_chat`,
+      chat_key: "required on p_chat.chat_key and p_messages[].chat_key",
     },
   };
 }
