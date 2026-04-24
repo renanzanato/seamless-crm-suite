@@ -50,6 +50,8 @@ export interface WhatsAppConversation {
   contactName: string | null;
   phoneNumber: string | null;
   chatKey: string | null;
+  providerChatId: string | null;
+  title: string | null;
   source: string | null;
   rawText: string | null;
   contentHash: string | null;
@@ -102,7 +104,15 @@ interface WhatsAppTimelineProps {
 
 const EXTENDED_CONVERSATION_SELECT = `
   id, company_id, contact_id, company_name, contact_name, phone_number, chat_key,
-  source, raw_text, content_hash, message_count, ingestion_status, ingestion_error,
+  wa_chat_id, title, source, raw_text, content_hash, message_count,
+  ingestion_status, ingestion_error, summary, analyzed, created_at,
+  company:companies(id, name, buying_signal),
+  contact:contacts(id, name, whatsapp)
+`;
+
+const PROVIDER_CONVERSATION_SELECT = `
+  id, company_id, contact_id, company_name, contact_name, phone_number, chat_key,
+  wa_chat_id, title, source, raw_text, content_hash, message_count,
   summary, analyzed, created_at,
   company:companies(id, name, buying_signal),
   contact:contacts(id, name, whatsapp)
@@ -181,6 +191,12 @@ function firstString(...values: unknown[]) {
     if (text?.trim()) return text.trim();
   }
   return null;
+}
+
+function chatKeyFromProviderId(value: unknown) {
+  const id = firstString(value);
+  if (!id) return null;
+  return /^(wa|phone|title|group):/i.test(id) ? id : `wa:${id}`;
 }
 
 function numberValue(value: unknown) {
@@ -293,7 +309,9 @@ function normalizeConversation(row: DbRecord): WhatsAppConversation {
     companyName: firstString(row.company_name),
     contactName: firstString(row.contact_name),
     phoneNumber: firstString(row.phone_number),
-    chatKey: firstString(row.chat_key),
+    chatKey: firstString(row.chat_key) ?? chatKeyFromProviderId(row.wa_chat_id),
+    providerChatId: firstString(row.wa_chat_id),
+    title: firstString(row.title),
     source: firstString(row.source),
     rawText: firstString(row.raw_text),
     contentHash: firstString(row.content_hash),
@@ -432,7 +450,11 @@ export async function fetchWhatsAppConversations(companyId?: string | null) {
   try {
     return await run(EXTENDED_CONVERSATION_SELECT);
   } catch {
-    return run(LEGACY_CONVERSATION_SELECT);
+    try {
+      return await run(PROVIDER_CONVERSATION_SELECT);
+    } catch {
+      return run(LEGACY_CONVERSATION_SELECT);
+    }
   }
 }
 
@@ -531,6 +553,7 @@ function conversationTitle(conversation: WhatsAppConversation) {
   return (
     conversation.company?.name
     ?? conversation.companyName
+    ?? conversation.title
     ?? conversation.contact?.name
     ?? conversation.contactName
     ?? conversation.phoneNumber
@@ -892,6 +915,7 @@ export function WhatsAppTimeline({
         conversationTitle(conversation),
         conversationSubtitle(conversation),
         conversation.chatKey,
+        conversation.providerChatId,
         conversation.phoneNumber,
         conversation.rawText,
       ].filter(Boolean).join(" ").toLowerCase();
@@ -954,6 +978,7 @@ export function WhatsAppTimeline({
       "whatsapp-operational-messages",
       selectedConversation?.id,
       selectedConversation?.chatKey,
+      selectedConversation?.providerChatId,
       selectedConversation?.contentHash,
     ],
     queryFn: () => selectedConversation ? fetchWhatsAppMessages(selectedConversation) : Promise.resolve(EMPTY_MESSAGES),

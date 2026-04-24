@@ -99,6 +99,7 @@
     getCurrentChat: () => request("GET_CURRENT_CHAT"),
     getCurrentChatHistory: (count = 200) => request("GET_CURRENT_CHAT_HISTORY", { count }),
     getChatMessages: (chat_id, count = 200) => request("GET_CHAT_MESSAGES", { chat_id, count }),
+    getChatHistory: (chat_id, count = 500) => request("GET_CHAT_HISTORY", { chat_id, count }),
     sendTextMessage: (chat_id, text, options = {}) => request("SEND_TEXT_MESSAGE", { chat_id, text, options }),
   };
 })();

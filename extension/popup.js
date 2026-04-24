@@ -14,8 +14,10 @@ const statusDot = $("#status-dot");
 const statusTitle = $("#status-title");
 const statusDetail = $("#status-detail");
 const lastErrorRow = $("#last-error-row");
+const settingAutoApprove = $("#setting-auto-approve");
 
 let refreshTimer = null;
+let lastSettingsJson = "";
 
 function sendRuntimeMessage(message) {
   return chrome.runtime
@@ -76,6 +78,7 @@ function setStatusVisual(kind, title, detail) {
 
 function renderStatus(status) {
   const stats = status.stats || {};
+  const settings = status.settings || {};
 
   $("#stat-lookups").textContent = String(stats.lookups || 0);
   $("#stat-eligible").textContent = String(stats.eligible || 0);
@@ -86,6 +89,12 @@ function renderStatus(status) {
   $("#last-sync").textContent = formatRelative(stats.last_sync_at);
   $("#last-error").textContent = stats.last_error || "—";
   lastErrorRow.classList.toggle("hidden", !stats.last_error);
+
+  const settingsJson = JSON.stringify(settings);
+  if (settingsJson !== lastSettingsJson) {
+    lastSettingsJson = settingsJson;
+    settingAutoApprove.checked = Boolean(settings.auto_approve_new_contacts);
+  }
 
   if (stats.last_status === "message_synced") {
     setStatusVisual("ok", "Sincronização ativa", "O último evento aprovado foi enviado ao CRM.");
@@ -143,6 +152,20 @@ loginForm.addEventListener("submit", async (event) => {
 logoutBtn.addEventListener("click", async () => {
   await sendRuntimeMessage({ type: "CRM_LOGOUT" });
   showLogin();
+});
+
+settingAutoApprove.addEventListener("change", async (event) => {
+  const auto_approve_new_contacts = Boolean(event.target.checked);
+  const previous = !auto_approve_new_contacts;
+  const response = await sendRuntimeMessage({
+    type: "CRM_UPDATE_SETTINGS",
+    payload: { auto_approve_new_contacts },
+  });
+  if (!response.ok) {
+    event.target.checked = previous;
+    return;
+  }
+  lastSettingsJson = JSON.stringify(response.data || {});
 });
 
 loadStatus();

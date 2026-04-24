@@ -736,31 +736,40 @@ CREATE INDEX IF NOT EXISTS idx_wa_messages_company ON whatsapp_messages(company_
 ALTER TABLE whatsapp_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_messages      ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Authenticated read conversations"
+-- Postgres não suporta CREATE POLICY IF NOT EXISTS. Usa DROP IF EXISTS + CREATE.
+DROP POLICY IF EXISTS "Authenticated read conversations"       ON whatsapp_conversations;
+DROP POLICY IF EXISTS "Authenticated insert conversations"     ON whatsapp_conversations;
+DROP POLICY IF EXISTS "Creator updates conversations"          ON whatsapp_conversations;
+DROP POLICY IF EXISTS "Service role full access conversations" ON whatsapp_conversations;
+DROP POLICY IF EXISTS "Authenticated read messages"            ON whatsapp_messages;
+DROP POLICY IF EXISTS "Authenticated insert messages"          ON whatsapp_messages;
+DROP POLICY IF EXISTS "Service role full access messages"      ON whatsapp_messages;
+
+CREATE POLICY "Authenticated read conversations"
   ON whatsapp_conversations FOR SELECT
   USING (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "Authenticated insert conversations"
+CREATE POLICY "Authenticated insert conversations"
   ON whatsapp_conversations FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "Creator updates conversations"
+CREATE POLICY "Creator updates conversations"
   ON whatsapp_conversations FOR UPDATE
   USING (created_by = auth.uid() OR auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Authenticated read messages"
+CREATE POLICY "Authenticated read messages"
   ON whatsapp_messages FOR SELECT
   USING (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "Authenticated insert messages"
+CREATE POLICY "Authenticated insert messages"
   ON whatsapp_messages FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "Service role full access conversations"
+CREATE POLICY "Service role full access conversations"
   ON whatsapp_conversations FOR ALL
   USING (auth.role() = 'service_role');
 
-CREATE POLICY IF NOT EXISTS "Service role full access messages"
+CREATE POLICY "Service role full access messages"
   ON whatsapp_messages FOR ALL
   USING (auth.role() = 'service_role');
 

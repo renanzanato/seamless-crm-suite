@@ -35,28 +35,100 @@ CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_conversations_wa_chat_id_key
   ON public.whatsapp_conversations (wa_chat_id)
   WHERE wa_chat_id IS NOT NULL;
 
--- 3. Garantir que `whatsapp_messages.wa_message_id` aceita dedup
--- (A tabela já tem UNIQUE via RODAR_TUDO.sql: wa_message_id UNIQUE.
---  Aqui só criamos um índice adicional caso a constraint unique ainda não exista.)
+-- 3. Garantir que `whatsapp_messages.wa_message_id` tem índice UNIQUE completo.
+-- IMPORTANTE: índice PARCIAL (WHERE wa_message_id IS NOT NULL) não casa com
+-- `ON CONFLICT (wa_message_id)` sem predicate repetido. Usamos índice cheio.
+-- NULLs continuam permitidos (UNIQUE trata NULL como distinto).
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes
-    WHERE schemaname = 'public'
-      AND indexname = 'whatsapp_messages_wa_message_id_key'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'whatsapp_messages_wa_message_id_key'
+    SELECT 1
+      FROM pg_index i
+      JOIN pg_class c  ON c.oid = i.indrelid
+      JOIN pg_class ic ON ic.oid = i.indexrelid
+     WHERE c.relname = 'whatsapp_messages'
+       AND c.relnamespace = 'public'::regnamespace
+       AND i.indisunique = true
+       AND i.indpred IS NULL
+       AND array_length(i.indkey, 1) = 1
+       AND (
+         SELECT attname FROM pg_attribute
+          WHERE attrelid = c.oid AND attnum = i.indkey[0]
+       ) = 'wa_message_id'
   ) THEN
     CREATE UNIQUE INDEX whatsapp_messages_wa_message_id_key
-      ON public.whatsapp_messages (wa_message_id)
-      WHERE wa_message_id IS NOT NULL;
+      ON public.whatsapp_messages (wa_message_id);
   END IF;
 END $$;
 
 -- 4. Campo para guardar tipo original (text/audio/image/...) e from_me
 ALTER TABLE public.whatsapp_messages
   ADD COLUMN IF NOT EXISTS message_type text;
+
+-- 4.0 Normaliza CHECK constraints em `direction`. Podem existir várias
+-- (auto-nomeadas _check, _check1, ...) com listas conflitantes se mais
+-- de um migration criou a coluna. Dropa todas e recria uma única
+-- permissiva que aceita os dois dialetos históricos.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT c.conname
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+     WHERE t.relname = 'whatsapp_messages'
+       AND t.relnamespace = 'public'::regnamespace
+       AND c.contype = 'c'
+       AND pg_get_constraintdef(c.oid) ILIKE '%direction%'
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE public.whatsapp_messages DROP CONSTRAINT %I',
+      r.conname
+    );
+  END LOOP;
+END $$;
+
+ALTER TABLE public.whatsapp_messages
+  ADD CONSTRAINT whatsapp_messages_direction_check
+  CHECK (direction IS NULL OR direction IN ('inbound','outbound','in','out'));
+
+-- 4.1 Afrouxa NOT NULLs herdados de schemas antigos em whatsapp_messages
+-- que a função NÃO preenche (chat_key do whatsapp_conversations.sql é o
+-- caso mais comum). Idempotente — colunas ausentes são ignoradas.
+DO $$
+DECLARE
+  col text;
+BEGIN
+  FOREACH col IN ARRAY ARRAY[
+    'body',
+    'conversation_id',
+    'chat_key',
+    'chat_id',
+    'message_fingerprint',
+    'occurred_at',
+    'metadata',
+    'transcription_status',
+    'created_at',
+    'updated_at',
+    'direction',
+    'message_type',
+    'raw_id',
+    'type',
+    'content_md',
+    'content'
+  ] LOOP
+    BEGIN
+      EXECUTE format(
+        'ALTER TABLE public.whatsapp_messages ALTER COLUMN %I DROP NOT NULL',
+        col
+      );
+    EXCEPTION
+      WHEN undefined_column THEN NULL;
+      WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+END $$;
 
 -- 5. RPC: ingest_whatsapp_chat
 -- ------------------------------------------------------------
@@ -72,7 +144,7 @@ CREATE OR REPLACE FUNCTION public.ingest_whatsapp_chat(
   p_messages jsonb
 )
 RETURNS TABLE (
-  contact_id         uuid,
+  out_contact_id     uuid,
   contact_created    boolean,
   messages_inserted  integer,
   messages_skipped   integer
@@ -137,18 +209,18 @@ BEGIN
   END IF;
 
   -- ── 2. Resolver / criar conversa ────────────────────────────
-  SELECT id INTO v_conversation_id
-    FROM public.whatsapp_conversations
-   WHERE wa_chat_id = v_wa_chat_id
+  SELECT wc.id INTO v_conversation_id
+    FROM public.whatsapp_conversations wc
+   WHERE wc.wa_chat_id = v_wa_chat_id
    LIMIT 1;
 
   IF v_conversation_id IS NULL THEN
     -- fallback: talvez já exista uma conversa pelo contact_id + phone
-    SELECT id INTO v_conversation_id
-      FROM public.whatsapp_conversations
-     WHERE contact_id = v_contact_id
-       AND coalesce(phone_number,'') = coalesce(v_number_e164,'')
-     ORDER BY created_at DESC
+    SELECT wc.id INTO v_conversation_id
+      FROM public.whatsapp_conversations wc
+     WHERE wc.contact_id = v_contact_id
+       AND coalesce(wc.phone_number,'') = coalesce(v_number_e164,'')
+     ORDER BY wc.created_at DESC
      LIMIT 1;
   END IF;
 
@@ -163,11 +235,11 @@ BEGIN
     )
     RETURNING id INTO v_conversation_id;
   ELSE
-    UPDATE public.whatsapp_conversations
-       SET wa_chat_id   = COALESCE(wa_chat_id, v_wa_chat_id),
-           phone_number = COALESCE(phone_number, v_number_e164),
-           contact_id   = COALESCE(contact_id, v_contact_id)
-     WHERE id = v_conversation_id;
+    UPDATE public.whatsapp_conversations AS wc
+       SET wa_chat_id   = COALESCE(wc.wa_chat_id, v_wa_chat_id),
+           phone_number = COALESCE(wc.phone_number, v_number_e164),
+           contact_id   = COALESCE(wc.contact_id, v_contact_id)
+     WHERE wc.id = v_conversation_id;
   END IF;
 
   -- ── 3. Iterar mensagens ─────────────────────────────────────

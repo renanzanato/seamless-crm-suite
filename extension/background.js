@@ -15,6 +15,11 @@ const STORAGE_KEYS = {
   stats: "pipa_crm_stats_v1",
   contactCache: "pipa_crm_contact_cache_v1",
   uiLocalState: "pipa_ui_local_state_v1",
+  settings: "pipa_crm_settings_v1",
+};
+
+const DEFAULT_SETTINGS = {
+  auto_approve_new_contacts: false,
 };
 
 const CONTACT_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -92,6 +97,19 @@ function toE164(digits) {
 
 function toE164Variants(phone) {
   return buildPhoneVariants(phone).map((digits) => `+${digits}`);
+}
+
+function normalizeChatKey(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/^(wa|phone|title|group):/i.test(text)) return text;
+  if (/@(?:c\.us|s\.whatsapp\.net)$/i.test(text)) return `wa:${text}`;
+  const phone = normalizePhone(text);
+  return phone ? `phone:${phone}` : text;
+}
+
+function makeChatKey(chatId, phone) {
+  return normalizeChatKey(chatId) || (phone ? `phone:${normalizePhone(phone)}` : "");
 }
 
 async function readJson(response) {
@@ -181,6 +199,18 @@ async function clearSession() {
 async function getStats() {
   const result = await chrome.storage.local.get(STORAGE_KEYS.stats);
   return { ...createDefaultStats(), ...(result[STORAGE_KEYS.stats] || {}) };
+}
+
+async function getSettings() {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.settings);
+  return { ...DEFAULT_SETTINGS, ...(result[STORAGE_KEYS.settings] || {}) };
+}
+
+async function patchSettings(patch) {
+  const current = await getSettings();
+  const next = { ...current, ...(patch || {}) };
+  await chrome.storage.local.set({ [STORAGE_KEYS.settings]: next });
+  return next;
 }
 
 async function patchStats(patch) {
@@ -417,6 +447,7 @@ async function approveContact(payload) {
 
   const chatPayload = {
     chat_id: chatJid,
+    chat_key: normalizeChatKey(payload?.chatKey) || makeChatKey(chatJid, phone),
     number_e164: toE164(phone),
     display_name: payload?.chatTitle || payload?.pushName || phone,
     push_name: payload?.pushName || null,
@@ -446,12 +477,58 @@ async function approveContact(payload) {
   return approved;
 }
 
+// ── Approved contact resolution (com auto-approve opcional) ──
+
+async function lookupCacheForPhone(phone) {
+  const direct = await getCachedContact(phone);
+  if (direct) return direct;
+  for (const variant of buildPhoneVariants(phone)) {
+    const match = await getCachedContact(variant);
+    if (match) return match;
+  }
+  return null;
+}
+
+async function ensureApprovedContact({ phone, chatId, chatTitle, pushName }) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+
+  let contact = await lookupCacheForPhone(normalized);
+  if (contact?.shouldMonitor) return contact;
+
+  if (!contact) {
+    try {
+      contact = await lookupContact({ phone: normalized });
+    } catch (error) {
+      console.warn("[Pipa] lookup falhou em ensureApprovedContact:", error?.message);
+    }
+  }
+  if (contact?.shouldMonitor) return contact;
+
+  const settings = await getSettings();
+  if (!settings.auto_approve_new_contacts) return null;
+
+  try {
+    const approved = await approveContact({
+      phone: normalized,
+      chatId: chatId || "",
+      chatTitle: chatTitle || "",
+      pushName: pushName || "",
+    });
+    if (approved?.shouldMonitor) return approved;
+  } catch (error) {
+    console.warn("[Pipa] auto-approve falhou:", error?.message);
+  }
+  return null;
+}
+
 // ── Sync ─────────────────────────────────────────────────
 
 function normalizeFlatMessagePayload(payload) {
   return {
     phone: payload.phone || payload.contact_phone || "",
     chatId: payload.chatId || payload.chat_id || payload.chat?.id || "",
+    chatKey: payload.chatKey || payload.chat_key || payload.chat?.key || "",
     chatTitle: payload.chatTitle || payload.chat_title || payload.chat?.title || "",
     message: {
       id: String(payload.raw_id || payload.id || payload.message_id || ""),
@@ -466,15 +543,20 @@ function normalizeFlatMessagePayload(payload) {
   };
 }
 
-function mapMessageToRpc(message, chatId) {
+function mapMessageToRpc(message, chatId, chatKey) {
+  const providerMessageId = String(message?.id || message?.raw_id || "");
+  const timestamp = message?.timestamp_wa || message?.timestamp || new Date().toISOString();
+  const body = message?.text || message?.content_md || "";
   return {
-    wa_msg_id: String(message?.id || message?.raw_id || ""),
+    wa_msg_id: providerMessageId,
+    provider_message_id: providerMessageId,
     chat_id: chatId,
+    chat_key: chatKey,
     from_me: message?.direction === "out" || message?.from_me === true,
     author: message?.author || null,
     type: message?.type || "text",
-    body: message?.text || message?.content_md || "",
-    timestamp: message?.timestamp_wa || message?.timestamp || new Date().toISOString(),
+    body,
+    timestamp,
     has_media: message?.type === "audio" || message?.type === "media",
     quoted_msg_id: message?.quoted_msg_id || null,
   };
@@ -487,17 +569,6 @@ async function syncMessage(payload) {
   const phone = normalizePhone(flat.phone);
   if (!phone) throw new Error("Mensagem sem telefone.");
 
-  let approvedContact = await getCachedContact(phone);
-  if (!approvedContact) {
-    for (const variant of buildPhoneVariants(phone)) {
-      approvedContact = await getCachedContact(variant);
-      if (approvedContact) break;
-    }
-  }
-  if (!approvedContact?.shouldMonitor) {
-    throw new Error("Contato não aprovado pelo CRM. Mensagem bloqueada.");
-  }
-
   const rawMessage = flat.message || {};
   const text = String(rawMessage.text || rawMessage.content_md || "").trim();
   const type = rawMessage.type || "text";
@@ -507,15 +578,27 @@ async function syncMessage(payload) {
     flat.chatId && /@/i.test(flat.chatId)
       ? flat.chatId
       : rawMessage.chat_jid || `${phone}@c.us`;
+  if (/@g\.us/i.test(chatJid)) return { skipped: true, reason: "group" };
+  const chatKey = normalizeChatKey(flat.chatKey) || makeChatKey(chatJid, phone);
+
+  const approvedContact = await ensureApprovedContact({
+    phone,
+    chatId: chatJid,
+    chatTitle: flat.chatTitle,
+  });
+  if (!approvedContact) {
+    return { skipped: true, reason: "not_approved" };
+  }
 
   const chatPayload = {
     chat_id: chatJid,
+    chat_key: chatKey,
     number_e164: toE164(phone),
     display_name: flat.chatTitle || approvedContact.name || phone,
     push_name: approvedContact.name || null,
     profile_pic_url: null,
   };
-  const messagesPayload = [mapMessageToRpc(rawMessage, chatJid)];
+  const messagesPayload = [mapMessageToRpc(rawMessage, chatJid, chatKey)];
 
   try {
     const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
@@ -554,14 +637,88 @@ async function syncMessage(payload) {
   }
 }
 
+async function backfillChat(payload) {
+  const session = await ensureSession();
+
+  const phone = normalizePhone(payload?.phone);
+  if (!phone) throw new Error("Telefone ausente no backfill.");
+
+  const chatJid =
+    payload?.chatId && /@/i.test(payload.chatId) ? payload.chatId : `${phone}@c.us`;
+  if (/@g\.us/i.test(chatJid)) {
+    return { skipped: true, reason: "group" };
+  }
+  const chatKey = normalizeChatKey(payload?.chatKey) || makeChatKey(chatJid, phone);
+
+  const approvedContact = await ensureApprovedContact({
+    phone,
+    chatId: chatJid,
+    chatTitle: payload?.chatTitle,
+  });
+  if (!approvedContact) {
+    return { skipped: true, reason: "not_approved" };
+  }
+
+  const incoming = Array.isArray(payload?.messages) ? payload.messages : [];
+  if (!incoming.length) {
+    return { synced: true, inserted: 0, skipped: 0 };
+  }
+
+  const chatPayload = {
+    chat_id: chatJid,
+    chat_key: chatKey,
+    number_e164: toE164(phone),
+    display_name: payload?.chatTitle || approvedContact.name || phone,
+    push_name: approvedContact.name || null,
+    profile_pic_url: null,
+  };
+
+  const CHUNK_SIZE = 200;
+  let inserted = 0;
+  let skipped = 0;
+
+  for (let i = 0; i < incoming.length; i += CHUNK_SIZE) {
+    const chunk = incoming
+      .slice(i, i + CHUNK_SIZE)
+      .map((message) => mapMessageToRpc(message, chatJid, chatKey));
+
+    const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
+      method: "POST",
+      token: session.access_token,
+      body: { p_chat: chatPayload, p_messages: chunk },
+    });
+
+    const row = Array.isArray(data) ? data[0] : data;
+    inserted += Number(row?.messages_inserted || 0);
+    skipped += Number(row?.messages_skipped || 0);
+  }
+
+  const stats = await getStats();
+  await patchStats({
+    synced: stats.synced + inserted,
+    last_status: inserted > 0 ? "message_synced" : "backfill_no_new",
+    last_error: null,
+    last_phone: phone,
+    last_contact_name: approvedContact.name,
+    last_sync_at: new Date().toISOString(),
+  });
+
+  return { synced: true, inserted, skipped };
+}
+
 // ── Status & router ──────────────────────────────────────
 
 async function getRuntimeStatus() {
-  const [rawSession, stats] = await Promise.all([getSession(), getStats()]);
+  const [rawSession, stats, settings] = await Promise.all([
+    getSession(),
+    getStats(),
+    getSettings(),
+  ]);
   return {
     authenticated: Boolean(rawSession),
     session: sanitizeSession(rawSession),
     stats,
+    settings,
     api_contract: {
       auth: `POST ${SUPABASE_URL}/auth/v1/token?grant_type=password`,
       contact_lookup: `GET ${SUPABASE_URL}/rest/v1/contacts?whatsapp=in.(+55...)`,
@@ -595,6 +752,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         case "CRM_SYNC_MESSAGE":
         case "NEW_MESSAGE":
           return { ok: true, data: await syncMessage(message.payload || {}) };
+        case "BACKFILL_CHAT":
+          return { ok: true, data: await backfillChat(message.payload || {}) };
+        case "CRM_GET_SETTINGS":
+          return { ok: true, data: await getSettings() };
+        case "CRM_UPDATE_SETTINGS":
+          return { ok: true, data: await patchSettings(message.payload || {}) };
         default:
           return { ok: false, error: `Tipo de mensagem desconhecido: ${message?.type}` };
       }

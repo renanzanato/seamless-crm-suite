@@ -237,3 +237,37 @@ article span,
   text-align: center;
   margin: 0;
 }
+
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.setting-row > span {
+  display: grid;
+  gap: 4px;
+}
+
+.setting-row strong {
+  color: #f4f4f5;
+  font-size: 13px;
+}
+
+.setting-row small {
+  color: #a1a1aa;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.setting-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  padding: 0;
+  cursor: pointer;
+  accent-color: #f97316;
+}

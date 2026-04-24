@@ -496,15 +496,108 @@
     };
   }
 
-  function emitReactMessageFromNode(node) {
-    const message = extractReactMessageFromNode(node) || extractDomMessageFromNode(node);
-    if (!message || emittedReactMessages.has(message.id)) return;
+  function emitMessage(message) {
+    if (!message || !message.id || emittedReactMessages.has(message.id)) return;
     emittedReactMessages.add(message.id);
     if (emittedReactMessages.size > 2000) {
       const first = emittedReactMessages.values().next().value;
       emittedReactMessages.delete(first);
     }
     window.postMessage({ channel: CHANNEL_RES, event: "WA_MESSAGE", data: message }, "*");
+  }
+
+  function emitReactMessageFromNode(node) {
+    const message = extractReactMessageFromNode(node) || extractDomMessageFromNode(node);
+    emitMessage(message);
+  }
+
+  // ── WPP model → WA_MESSAGE serializer ───────────────────
+  // Usado pelo listener global WPP.ev.on('chat.new_message') e pelo backfill
+  // via WPP.chat.getMessages. Compartilha as mesmas regras de filtro que a
+  // extração via React Fiber para manter o contrato do WA_MESSAGE estável.
+
+  function serializeWppModelMessage(msg, source = "wpp-ev") {
+    if (!msg) return null;
+
+    const id = stringifyId(msg.id) || stringifyId(msg._serialized);
+    if (!id) return null;
+
+    const chatJid =
+      stringifyId(firstPath(msg, [["id", "remote"], ["from"], ["to"], ["chatId"]])) || "";
+    if (chatJid && /@g\.us/i.test(chatJid)) return null;
+
+    const rawType = String(msg.type || msg.subtype || "").toLowerCase();
+    if (ignoredMessageTypes.has(rawType)) return null;
+    if (
+      msg.isNotification === true ||
+      msg.isSystemMsg === true ||
+      msg.isStatusV3 === true ||
+      msg.broadcast === true
+    ) {
+      return null;
+    }
+
+    const text = normalizeText(msg.body || msg.caption || "");
+    if (isSystemText(text)) return null;
+
+    let type = rawType;
+    if (["ptt", "audio"].includes(rawType)) type = "audio";
+    else if (
+      ["image", "video", "document", "sticker"].includes(rawType) ||
+      msg.mediaKey ||
+      msg.isMedia
+    ) {
+      type = "media";
+    } else if (rawType === "chat" || rawType === "text" || (!rawType && text)) {
+      type = "text";
+    }
+
+    if (type === "text" && !text) return null;
+    if (rawType && !ALLOWED_MESSAGE_TYPES.has(rawType) && !ALLOWED_MESSAGE_TYPES.has(type)) {
+      return null;
+    }
+
+    const rawTs = msg.t ?? msg.timestamp;
+    const tsNumber = Number(rawTs);
+    const ms = Number.isFinite(tsNumber)
+      ? (tsNumber < 10000000000 ? tsNumber * 1000 : tsNumber)
+      : Date.now();
+    const timestamp = new Date(ms).toISOString();
+
+    const fromMe = msg.fromMe;
+    const direction = fromMe === true ? "out" : fromMe === false ? "in" : "unknown";
+    const author =
+      stringifyId(firstPath(msg, [["author"], ["from"], ["sender", "id"], ["senderObj", "id"]])) ||
+      null;
+
+    return {
+      id,
+      raw_id: id,
+      chat_jid: chatJid,
+      direction,
+      author,
+      type,
+      text,
+      content_md: text,
+      rawTimestamp: null,
+      timestamp,
+      timestamp_wa: timestamp,
+      source,
+    };
+  }
+
+  function startWppGlobalListener() {
+    if (window.__pipaWppListenerBound) return;
+    if (!window.WPP?.ev?.on) return;
+    window.__pipaWppListenerBound = true;
+
+    window.WPP.ev.on("chat.new_message", (msg) => {
+      try {
+        emitMessage(serializeWppModelMessage(msg, "wpp-ev"));
+      } catch (err) {
+        console.warn("[Pipa] chat.new_message handler failed:", err);
+      }
+    });
   }
 
   function getActiveMessageContainer() {
@@ -681,6 +774,16 @@
             data: await getChatMessages(payload.chat_id, payload.count || 200),
           };
           break;
+        case "GET_CHAT_HISTORY": {
+          await whenReady();
+          const count = typeof payload?.count === "number" ? payload.count : 500;
+          const msgs = await window.WPP.chat.getMessages(payload.chat_id, { count });
+          const serialized = (msgs || [])
+            .map((m) => serializeWppModelMessage(m, "wpp-backfill"))
+            .filter(Boolean);
+          response = { ok: true, data: serialized };
+          break;
+        }
         case "SEND_TEXT_MESSAGE":
           response = { ok: true, data: await sendTextMessage(payload || {}) };
           break;
@@ -710,6 +813,7 @@
 
   loadWaJs()
     .then(() => {
+      startWppGlobalListener();
       window.postMessage({ channel: CHANNEL_RES, event: "WA_READY" }, "*");
       console.log("[Pipa] wa-js ready");
     })

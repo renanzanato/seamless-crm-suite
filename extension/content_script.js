@@ -18,6 +18,7 @@
     scanTimer: null,
     pendingStructuredMessages: [],
     processingNodes: false,
+    backfilledChats: new Set(),
   };
 
   const MAX_PROCESSED_MESSAGES = 2500;
@@ -420,6 +421,7 @@
     return {
       id,
       raw_id: id,
+      chat_jid: String(message?.chat_jid || "").trim(),
       direction,
       author: message?.author || null,
       type,
@@ -430,147 +432,6 @@
       timestamp_wa: timestamp,
       source: message?.source || "unknown",
     };
-  }
-
-  function normalizeStructuredMessage(message) {
-    return normalizeCapturedMessage({ ...message, source: "wpp" });
-  }
-
-  function getDomMessageContainers(root = document) {
-    const main = getMainPane();
-    if (!main) return [];
-
-    const searchRoot = root instanceof Element && main.contains(root) ? root : main;
-    const containers = new Set();
-    const addContainer = (node) => {
-      const container = node.closest?.("[data-id]") || node.closest?.("[data-pre-plain-text]") || node;
-      if (container instanceof Element && main.contains(container)) containers.add(container);
-    };
-
-    if (searchRoot.matches?.("[data-id], [data-pre-plain-text]")) addContainer(searchRoot);
-    for (const node of searchRoot.querySelectorAll?.("[data-id], [data-pre-plain-text]") || []) {
-      addContainer(node);
-    }
-
-    return Array.from(containers).sort((left, right) => {
-      if (left === right) return 0;
-      return left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-    });
-  }
-
-  function parsePrePlainText(value) {
-    const text = normalizeText(value);
-    const match = text.match(/^\[([^\]]+)\]\s*(.*?):\s*$/);
-    return {
-      rawTimestamp: match?.[1] || null,
-      author: match?.[2] || null,
-      prefix: match?.[0] || "",
-    };
-  }
-
-  function inferDomDirection(container, messageId) {
-    const text = String(messageId || container.getAttribute("data-id") || "");
-    if (text.startsWith("true_")) return "out";
-    if (text.startsWith("false_")) return "in";
-
-    const labels = Array.from(container.querySelectorAll("[aria-label], [data-icon]"))
-      .map((node) => `${node.getAttribute("aria-label") || ""} ${node.getAttribute("data-icon") || ""}`.toLowerCase())
-      .join(" ");
-    if (/msg-(dbl)?check|enviada|sent|read|lida/.test(labels)) return "out";
-    return "unknown";
-  }
-
-  function isMetaText(text) {
-    const value = normalizeText(text);
-    if (!value) return true;
-    if (/^\d{1,2}:\d{2}(\s?(am|pm))?$/i.test(value)) return true;
-    if (/^\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?$/.test(value)) return true;
-    if (/^--:--$/.test(value)) return true;
-    if (/^(encaminhada|forwarded)$/i.test(value)) return true;
-    if (/^[✓\s]+$/.test(value)) return true;
-    if (/^(hoje|ontem|today|yesterday)$/i.test(value)) return true;
-    if (/^(segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)(-feira)?$/i.test(value)) return true;
-    if (/^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.test(value)) return true;
-    if (isSystemText(value)) return true;
-    return false;
-  }
-
-  function extractDomText(container, prePlainText) {
-    const values = [];
-    const candidates = container.querySelectorAll("[data-pre-plain-text] span[dir], [data-pre-plain-text] div[dir], span[dir], div[dir]");
-
-    for (const node of candidates) {
-      if (node.closest("button, [role='button'], svg, audio, video, canvas")) continue;
-      const text = normalizeText(node.innerText || node.textContent || "");
-      if (isMetaText(text)) continue;
-      if (prePlainText?.prefix && text.startsWith(prePlainText.prefix)) continue;
-      if (!values.includes(text)) values.push(text);
-    }
-
-    const joined = values.join("\n").trim();
-    if (joined) return joined;
-
-    const clone = container.cloneNode(true);
-    clone.querySelectorAll("button, [role='button'], svg, audio, video, canvas, img").forEach((node) => node.remove());
-    let fallback = normalizeText(clone.innerText || clone.textContent || "");
-    if (prePlainText?.prefix && fallback.startsWith(prePlainText.prefix)) {
-      fallback = normalizeText(fallback.slice(prePlainText.prefix.length));
-    }
-    return isMetaText(fallback) ? "" : fallback;
-  }
-
-  function detectDomMessageType(container, text) {
-    if (text) return "text";
-    const labels = Array.from(container.querySelectorAll("[aria-label], [data-icon], [title]"))
-      .map((node) => `${node.getAttribute("aria-label") || ""} ${node.getAttribute("data-icon") || ""} ${node.getAttribute("title") || ""}`.toLowerCase())
-      .join(" ");
-    if (/ptt|audio|voice|voz|áudio|audio/.test(labels) || container.querySelector("audio")) return "audio";
-    if (/image|video|document|sticker|imagem|vídeo|documento|figurin/.test(labels) || container.querySelector("img, video, canvas")) return "media";
-    return "text";
-  }
-
-  function parseDomMessage(container) {
-    const dataId = container.getAttribute("data-id") || container.querySelector("[data-id]")?.getAttribute("data-id") || "";
-    const preNode = container.matches("[data-pre-plain-text]")
-      ? container
-      : container.querySelector("[data-pre-plain-text]");
-    const pre = parsePrePlainText(preNode?.getAttribute("data-pre-plain-text") || "");
-    const text = extractDomText(container, pre);
-    const id = dataId || `${STATE.currentChatKey}:dom:${hashText(`${pre.rawTimestamp}|${pre.author}|${text}`)}`;
-    const type = detectDomMessageType(container, text);
-
-    if (!id || (!text && type === "text")) return null;
-
-    const timestamp = new Date().toISOString();
-
-    return {
-      id,
-      raw_id: id,
-      direction: inferDomDirection(container, id),
-      author: pre.author,
-      type,
-      text,
-      content_md: text,
-      rawTimestamp: pre.rawTimestamp,
-      timestamp,
-      timestamp_wa: timestamp,
-      source: "dom",
-    };
-  }
-
-  function parseMessageFromNode(container) {
-    return parseDomMessage(container);
-  }
-
-  function getDomMessages() {
-    return getDomMessageContainers()
-      .map(parseMessageFromNode)
-      .filter(Boolean);
-  }
-
-  async function collectCurrentMessageIds() {
-    const messages = getDomMessages();
-    return new Set(messages.map((message) => message.id).filter(Boolean));
   }
 
   function rememberProcessedMessage(id) {
@@ -630,9 +491,8 @@
     STATE.currentTitle = chat.title || "";
     STATE.currentSource = chat.source || "dom";
     STATE.approvedContact = null;
-    stopMonitoring();
-    clearPendingMessages();
-    STATE.processedMessages = await collectCurrentMessageIds();
+    STATE.monitoring = false;
+    STATE.lookupInProgress = false;
 
     if (chat.isGroup) {
       notifyUi({ status: "group_ignored" });
@@ -660,7 +520,6 @@
     if (lookupToken !== STATE.lookupToken || chat.chatKey !== STATE.currentChatKey) return;
     STATE.lookupInProgress = false;
     if (!response.ok || !response.data?.shouldMonitor) {
-      clearPendingMessages();
       notifyUi({
         status: "ignored_contact",
         contact: response.data || null,
@@ -672,61 +531,69 @@
     STATE.approvedContact = response.data;
     startMonitoring();
     notifyUi({ status: "monitoring_contact" });
+
+    void performBackfill({
+      chatJid: chat.chatId || `${chat.phone}@c.us`,
+      chatKey: chat.chatKey,
+      phone: chat.phone,
+      title: chat.title,
+    });
   }
 
   async function syncMessage(message) {
-    if (!STATE.monitoring || !STATE.approvedContact || !STATE.currentPhone) return;
     if (message?.id && STATE.processedMessages.has(message.id)) return;
 
-    const approvedPhone = normalizePhone(STATE.approvedContact.phone || "");
-    const currentPhone = normalizePhone(STATE.currentPhone);
-    if (approvedPhone && approvedPhone !== currentPhone) return;
+    let chatJid = String(message?.chat_jid || "").trim();
+    let phone = chatJid ? normalizePhone(chatJid) : "";
 
-    const chatKeyAtSend = STATE.currentChatKey;
+    // Mensagens vindas do fallback DOM não carregam chat_jid — atribui ao chat ativo.
+    if (!phone) {
+      phone = normalizePhone(STATE.currentPhone || "");
+      chatJid = chatJid || STATE.currentChatId || (phone ? `${phone}@c.us` : "");
+    }
+    if (!phone) return;
+    if (/@g\.us/i.test(chatJid)) return;
+
+    const isCurrentChat = phone === normalizePhone(STATE.currentPhone || "");
+
     const response = await sendRuntimeMessage({
       type: "NEW_MESSAGE",
       payload: {
-        phone: STATE.currentPhone,
-        chatId: STATE.currentChatId || STATE.currentChatKey,
-        chatTitle: STATE.currentTitle,
+        phone,
+        chatId: chatJid,
+        chatKey: isCurrentChat ? (STATE.currentChatKey || "") : "",
+        chatTitle: isCurrentChat ? (STATE.currentTitle || "") : "",
         message,
       },
     });
 
-    if (chatKeyAtSend !== STATE.currentChatKey) return;
-
-    if (response.ok) {
+    const skipped = Boolean(response.data?.skipped);
+    if (response.ok && !skipped) {
       rememberProcessedMessage(message?.id);
     }
 
-    notifyUi({
-      status: response.ok ? "message_synced" : "sync_failed",
-      lastError: response.ok ? "" : response.error,
-      lastSyncAt: response.ok ? new Date().toISOString() : "",
-    });
-  }
-
-  function structuredMessageBelongsToCurrentChat(message) {
-    const chatJid = String(message?.chat_jid || "").toLowerCase();
-    if (!chatJid) return true;
-    if (/@g\.us/i.test(chatJid)) return false;
-    if (!STATE.currentPhone) return true;
-    const incoming = normalizePhone(chatJid);
-    if (!incoming) return true;
-    const current = normalizePhone(STATE.currentPhone);
-    if (incoming === current) return true;
-    const variants = new Set(buildPhoneVariants(current));
-    return variants.has(incoming);
+    if (isCurrentChat) {
+      const status = response.ok && !skipped
+        ? "message_synced"
+        : response.data?.reason === "not_approved"
+          ? "ignored_contact"
+          : "sync_failed";
+      notifyUi({
+        status,
+        lastError: response.ok ? "" : response.error,
+        lastSyncAt: response.ok && !skipped ? new Date().toISOString() : "",
+      });
+    }
   }
 
   function enqueueStructuredMessage(message) {
-    if (!structuredMessageBelongsToCurrentChat(message)) return;
+    const chatJid = String(message?.chat_jid || "").toLowerCase();
+    if (chatJid && /@g\.us/i.test(chatJid)) return;
+
     const normalized = normalizeCapturedMessage(message);
     if (!normalized?.id) return;
-    if (!STATE.monitoring && !STATE.lookupInProgress) {
-      rememberProcessedMessage(normalized.id);
-      return;
-    }
+    if (STATE.processedMessages.has(normalized.id)) return;
+
     if (!STATE.pendingStructuredMessages.some((item) => item.id === normalized.id)) {
       STATE.pendingStructuredMessages.push(normalized);
     }
@@ -738,18 +605,59 @@
 
   async function scanVisibleMessages() {
     window.clearTimeout(STATE.scanTimer);
-    if (!STATE.monitoring || STATE.processingNodes) return;
+    if (STATE.processingNodes) return;
 
     STATE.processingNodes = true;
     try {
       const structuredMessages = STATE.pendingStructuredMessages.splice(0);
       for (const message of structuredMessages) {
         if (!message || STATE.processedMessages.has(message.id)) continue;
-        void syncMessage({ ...message, source: message.source || "react-fiber-page" });
+        await syncMessage(message);
       }
-
     } finally {
       STATE.processingNodes = false;
+    }
+  }
+
+  async function performBackfill({ chatJid, chatKey, phone, title }) {
+    if (!chatJid || !phone) return;
+    if (STATE.backfilledChats.has(chatJid)) return;
+    STATE.backfilledChats.add(chatJid);
+
+    try {
+      const bridge = getBridge();
+      if (!bridge?.getChatHistory) return;
+
+      const messages = await bridge.getChatHistory(chatJid, 500);
+      if (!Array.isArray(messages) || messages.length === 0) return;
+
+      const response = await sendRuntimeMessage({
+        type: "BACKFILL_CHAT",
+        payload: {
+          phone,
+          chatId: chatJid,
+          chatKey: chatKey || "",
+          chatTitle: title || "",
+          messages,
+        },
+      });
+
+      if (response.ok) {
+        for (const msg of messages) {
+          if (msg?.id) rememberProcessedMessage(msg.id);
+        }
+        notifyUi({
+          status: "message_synced",
+          lastError: "",
+          lastSyncAt: new Date().toISOString(),
+        });
+      } else {
+        STATE.backfilledChats.delete(chatJid);
+        notifyUi({ status: "sync_failed", lastError: response.error || "Backfill falhou" });
+      }
+    } catch (error) {
+      STATE.backfilledChats.delete(chatJid);
+      console.warn("[Pipa] backfill falhou:", error);
     }
   }
 
@@ -807,6 +715,7 @@
       STATE.currentTitle = null;
       STATE.currentSource = "none";
       STATE.processedMessages = new Set();
+      STATE.backfilledChats = new Set();
       stopMonitoring();
       scheduleEvaluate(50);
     }
@@ -828,6 +737,7 @@
       payload: {
         phone: STATE.currentPhone,
         chatId: STATE.currentChatId || "",
+        chatKey: STATE.currentChatKey || "",
         chatTitle: STATE.currentTitle || "",
         pushName: detail?.pushName || STATE.currentTitle || "",
       },
@@ -847,6 +757,13 @@
     STATE.lookupToken += 1;
     startMonitoring();
     notifyUi({ status: "monitoring_contact", contact: response.data, lastError: "" });
+
+    void performBackfill({
+      chatJid: STATE.currentChatId || `${STATE.currentPhone}@c.us`,
+      chatKey: STATE.currentChatKey || "",
+      phone: STATE.currentPhone,
+      title: STATE.currentTitle,
+    });
   }
 
   window.addEventListener("pipa:approve-contact", (event) => {
