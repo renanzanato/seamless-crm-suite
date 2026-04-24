@@ -18,6 +18,7 @@ import PipelinePage from "./pages/crm/PipelinePage.tsx";
 import Integrations from "./pages/dados/Integrations.tsx";
 import HojePage from "./pages/HojePage.tsx";
 import CompanyDetail from "./pages/crm/CompanyDetail.tsx";
+import ContactDetail from "./pages/crm/ContactDetail.tsx";
 import CalendarPage from "./pages/CalendarPage.tsx";
 import MensagensPage from "./pages/MensagensPage.tsx";
 
@@ -46,6 +47,7 @@ const App = () => (
 
               {/* CRM */}
               <Route path="/crm/contatos" element={<Contacts />} />
+              <Route path="/crm/contatos/:id" element={<ContactDetail />} />
               <Route path="/crm/empresas" element={<Companies />} />
               <Route path="/crm/empresas/:id" element={<CompanyDetail />} />
               <Route path="/crm/negocios" element={<PipelinePage />} />

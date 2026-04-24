@@ -87,11 +87,19 @@ export interface Contact {
   name: string;
   role: string | null;   // cargo
   email: string | null;
+  phone?: string | null;
   whatsapp: string | null;
   company_id: string | null;
   source: string | null;
   owner_id: string;
   created_at: string;
+  // Apollo / enrichment (opcionais — populados pelo enrich)
+  apollo_person_id?: string | null;
+  linkedin_url?: string | null;
+  seniority?: string | null;
+  departments?: string[] | null;
+  enriched_at?: string | null;
+  enrichment_source?: string | null;
   company?: Pick<Company, 'id' | 'name'> | null;
   owner?: Pick<Profile, 'id' | 'name'> | null;
 }

@@ -3,117 +3,106 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pipa Driven</title>
+  <title>Pipa Driven CRM Sync</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div id="app">
-    <div id="login-screen" class="screen">
-      <div class="logo">
-        <div class="logo-icon">P</div>
+  <main id="app">
+    <section id="login-screen" class="screen">
+      <header class="brand">
+        <div class="brand-mark">P</div>
         <div>
-          <span class="logo-text">PIPA</span>
-          <span class="logo-sub">Driven</span>
+          <h1>Pipa Driven</h1>
+          <p>WhatsApp CRM Sync</p>
         </div>
-      </div>
-      <p class="subtitle">WhatsApp CRM Bridge</p>
+      </header>
 
-      <form id="login-form" class="form">
-        <input type="email" id="login-email" placeholder="E-mail" required />
-        <input type="password" id="login-password" placeholder="Senha" required />
-        <button type="submit" id="login-btn">Entrar</button>
+      <form id="login-form" class="panel">
+        <label>
+          <span>E-mail</span>
+          <input
+            id="email"
+            type="email"
+            placeholder="voce@empresa.com"
+            autocomplete="username"
+            required
+          />
+        </label>
+
+        <label>
+          <span>Senha</span>
+          <input
+            id="password"
+            type="password"
+            placeholder="Sua senha do CRM"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+
+        <button id="login-btn" type="submit">Entrar</button>
+        <p class="hint">Use o mesmo login do CRM Pipa Driven.</p>
         <p id="login-error" class="error hidden"></p>
       </form>
+    </section>
 
-      <p class="footer-text">Somente membros da Pipa Driven</p>
-    </div>
-
-    <div id="main-screen" class="screen hidden">
-      <div class="header">
-        <div class="header-left">
-          <div class="logo-icon-sm">P</div>
-          <div>
-            <p class="user-name" id="user-name">—</p>
-            <p class="user-role" id="user-role">—</p>
-          </div>
-        </div>
-        <button id="logout-btn" class="btn-ghost" title="Sair">Sair</button>
-      </div>
-
-      <div class="status-card" id="status-card">
-        <div class="status-icon" id="status-icon">&#x2714;</div>
+    <section id="main-screen" class="screen hidden">
+      <header class="topbar">
         <div>
-          <p class="status-title" id="status-title">Bridge pronta</p>
-          <p class="status-desc" id="status-desc">Lendo estado do monitoramento...</p>
+          <p class="eyebrow">CRM conectado</p>
+          <h2 id="session-title">—</h2>
+          <p id="session-url" class="muted">—</p>
         </div>
-      </div>
+        <button id="logout-btn" type="button" class="ghost">Sair</button>
+      </header>
 
-      <div class="instructions">
-        <h3>Processamentos</h3>
-        <div style="display:grid; gap:8px; font-size:12px; color:#a3a3a3;">
-          <label style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" id="toggle-analysis" />
-            Analise de IA assincrona
-          </label>
-          <label style="display:flex; align-items:center; gap:8px;">
-            <input type="checkbox" id="toggle-transcription" />
-            Transcricao de audio assincrona
-          </label>
+      <section class="status" id="status-card">
+        <div id="status-dot" class="dot"></div>
+        <div>
+          <strong id="status-title">Aguardando WhatsApp Web</strong>
+          <p id="status-detail">Abra uma conversa para validar o telefone no CRM.</p>
         </div>
-        <p id="toggle-feedback" class="footer-text" style="text-align:left; margin-top:8px;">—</p>
-      </div>
+      </section>
 
-      <div class="stats" id="stats" style="grid-template-columns:1fr 1fr; margin-bottom:16px;">
-        <div class="stat">
-          <p class="stat-value" id="stat-monitored-today">—</p>
-          <p class="stat-label">Monit. hoje</p>
-        </div>
-        <div class="stat">
-          <p class="stat-value" id="stat-monitored-total">—</p>
-          <p class="stat-label">Chats ativos</p>
-        </div>
-        <div class="stat">
-          <p class="stat-value" id="stat-saves-today">—</p>
-          <p class="stat-label">Saves hoje</p>
-        </div>
-        <div class="stat">
-          <p class="stat-value" id="stat-pending">—</p>
-          <p class="stat-label">Pendentes</p>
-        </div>
-      </div>
+      <section class="grid">
+        <article>
+          <strong id="stat-lookups">0</strong>
+          <span>Consultas</span>
+        </article>
+        <article>
+          <strong id="stat-eligible">0</strong>
+          <span>Elegíveis</span>
+        </article>
+        <article>
+          <strong id="stat-ignored">0</strong>
+          <span>Ignorados</span>
+        </article>
+        <article>
+          <strong id="stat-synced">0</strong>
+          <span>Sincronizadas</span>
+        </article>
+      </section>
 
-      <div class="instructions">
-        <h3>Automações</h3>
-        <div class="automation-toggles">
-          <label>
-            <input type="checkbox" id="toggle-cadence" />
-            Cadência automatizada
-          </label>
-          <label>
-            <input type="checkbox" id="toggle-auto-reply" />
-            Auto-reply IA (10min)
-          </label>
+      <section class="panel compact">
+        <div class="row">
+          <span>Último telefone</span>
+          <strong id="last-phone">—</strong>
         </div>
-        <div class="automation-metrics">
-          <div><strong>Cadência:</strong> <span id="automation-cadence">—</span></div>
-          <div><strong>Auto-reply:</strong> <span id="automation-auto-reply">—</span></div>
+        <div class="row">
+          <span>Último contato</span>
+          <strong id="last-contact">—</strong>
         </div>
-        <p id="automation-next" class="footer-text" style="text-align:left; margin-top:8px;">—</p>
-      </div>
-
-      <div class="instructions">
-        <h3>Status da Bridge</h3>
-        <div style="display:grid; gap:6px; font-size:12px; color:#a3a3a3; line-height:1.5;">
-          <div><strong>Ultimo save:</strong> <span id="pipeline-save">—</span></div>
-          <div><strong>Mensagens:</strong> <span id="pipeline-message-sync">—</span></div>
-          <div><strong>Upload:</strong> <span id="pipeline-upload">—</span></div>
-          <div><strong>IA:</strong> <span id="pipeline-analysis">—</span></div>
-          <div><strong>Transcricao:</strong> <span id="pipeline-transcription">—</span></div>
+        <div class="row">
+          <span>Último sync</span>
+          <strong id="last-sync">—</strong>
         </div>
-        <p id="bridge-note" class="footer-text" style="text-align:left; margin-top:8px;">—</p>
-      </div>
-    </div>
-  </div>
+        <div class="row error-row hidden" id="last-error-row">
+          <span>Erro</span>
+          <strong id="last-error">—</strong>
+        </div>
+      </section>
+    </section>
+  </main>
 
   <script src="popup.js"></script>
 </body>

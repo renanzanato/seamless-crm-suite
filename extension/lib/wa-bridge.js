@@ -2,7 +2,7 @@
 // Pipa Driven — Bridge client (content script → page)
 // ──────────────────────────────────────────────────────────
 // Injeta inject-wa.js no page context e expõe uma API
-// baseada em Promise para o content.js consumir.
+// baseada em Promise para o content_script.js consumir.
 // ──────────────────────────────────────────────────────────
 
 (function () {
@@ -15,6 +15,7 @@
   const pending = new Map();
   let seq = 0;
   let ready = false;
+  let injectionStarted = false;
   const readyWaiters = [];
 
   function nextId() {
@@ -57,10 +58,15 @@
   }
 
   function injectScript() {
+    if (injectionStarted) return;
+    injectionStarted = true;
     // Ordem importa: primeiro o bundle wa-js (expõe window.WPP), depois a bridge
     injectOne("pipa-wa-vendor", "vendor/wppconnect-wa.js")
       .then(() => injectOne("pipa-wa-inject", "inject-wa.js"))
-      .catch((err) => console.error("[Pipa] inject error:", err));
+      .catch((err) => {
+        injectionStarted = false;
+        console.error("[Pipa] inject error:", err);
+      });
   }
 
   function whenReady(timeoutMs = 15000) {
@@ -93,5 +99,6 @@
     getCurrentChat: () => request("GET_CURRENT_CHAT"),
     getCurrentChatHistory: (count = 200) => request("GET_CURRENT_CHAT_HISTORY", { count }),
     getChatMessages: (chat_id, count = 200) => request("GET_CHAT_MESSAGES", { chat_id, count }),
+    sendTextMessage: (chat_id, text, options = {}) => request("SEND_TEXT_MESSAGE", { chat_id, text, options }),
   };
 })();

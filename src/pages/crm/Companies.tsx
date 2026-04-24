@@ -9,9 +9,11 @@ import {
   ChevronRight,
   CircleDot,
   DollarSign,
+  Download,
   ExternalLink,
   Flame,
   Gauge,
+  Handshake,
   Linkedin,
   Pencil,
   Plus,
@@ -66,9 +68,14 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { deleteCompany, getCompaniesPage, getCompanyFilterOptions, type CompanySortKey } from "@/services/crmService";
+import { createDeal, deleteCompany, getCompaniesPage, getCompanyFilterOptions, getFunnels, type CompanySortKey } from "@/services/crmService";
+import { enrichCompaniesBulk } from "@/services/apolloService";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { BuyingSignal, Company, CompanyStatus } from "@/types";
+import { DEAL_STAGES } from "@/types";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const PAGE_SIZE = 25;
 
@@ -121,6 +128,57 @@ function fmtMoneyCompact(value: number | null) {
   if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1).replace(".", ",")}M`;
   if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}k`;
   return `R$ ${value.toLocaleString("pt-BR")}`;
+}
+
+const CSV_COLUMNS: Array<{ header: string; value: (c: Company) => string | number | null | undefined }> = [
+  { header: "Nome", value: (c) => c.name },
+  { header: "CNPJ", value: (c) => c.cnpj },
+  { header: "Cidade", value: (c) => c.city },
+  { header: "Estado", value: (c) => c.state },
+  { header: "Segmento", value: (c) => c.segment },
+  { header: "Status", value: (c) => STATUS_LABELS[c.status]?.label ?? c.status },
+  { header: "Score ICP", value: (c) => c.icp_score },
+  { header: "Tier", value: (c) => c.score_tier },
+  { header: "Buying Signal", value: (c) => c.buying_signal },
+  { header: "Modelo de vendas", value: (c) => c.sales_model },
+  { header: "Lancamento ativo", value: (c) => (c.has_active_launch ? "Sim" : "Nao") },
+  { header: "Lancamento previsto", value: (c) => (c.upcoming_launch ? "Sim" : "Nao") },
+  { header: "Lancamentos no ano", value: (c) => c.launch_count_year },
+  { header: "VGV projetado", value: (c) => c.vgv_projected },
+  { header: "Midia mensal", value: (c) => c.monthly_media_spend },
+  { header: "Funcionarios", value: (c) => c.employees_count },
+  { header: "Fundacao", value: (c) => c.founded_year },
+  { header: "Dominio", value: (c) => c.domain },
+  { header: "Website", value: (c) => c.website },
+  { header: "LinkedIn", value: (c) => c.linkedin_url },
+  { header: "Instagram", value: (c) => c.instagram_url },
+  { header: "Facebook", value: (c) => c.facebook_url },
+  { header: "Responsavel", value: (c) => c.owner?.name },
+  { header: "Ultima interacao", value: (c) => c.last_interaction_at },
+  { header: "Criada em", value: (c) => c.created_at },
+];
+
+function csvEscape(value: unknown): string {
+  if (value == null) return "";
+  const str = String(value);
+  if (/[",\n;]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function exportCompaniesCsv(companies: Company[]) {
+  const header = CSV_COLUMNS.map((c) => csvEscape(c.header)).join(";");
+  const rows = companies.map((c) => CSV_COLUMNS.map((col) => csvEscape(col.value(c))).join(";"));
+  const csv = "\uFEFF" + [header, ...rows].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `contas-${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 const LOGO_SOURCES = (domain: string) => [
@@ -242,6 +300,7 @@ function AccountStats() {
 export default function Companies() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { profile } = useAuth();
   const [search, setSearch] = useState("");
   const [signalFilter, setSignalFilter] = useState("__all__");
   const [launchFilter, setLaunchFilter] = useState("__all__");
@@ -256,6 +315,9 @@ export default function Companies() {
   const [editing, setEditing] = useState<Company | null>(null);
   const [deleting, setDeleting] = useState<Company | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dealDialogOpen, setDealDialogOpen] = useState(false);
+  const [dealFunnelId, setDealFunnelId] = useState<string>("");
+  const [dealStage, setDealStage] = useState<string>(DEAL_STAGES[0]);
 
   const { data: filterOptions } = useQuery({
     queryKey: ["company-filter-options"],
@@ -322,6 +384,77 @@ export default function Companies() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const enrichMutation = useMutation({
+    mutationFn: (ids: string[]) => enrichCompaniesBulk(ids, { maxContacts: 3, revealPhones: true }),
+    onSuccess: ({ successes, failures }) => {
+      const totalContacts = successes.reduce((acc, r) => acc + r.created, 0);
+      const creditsUsed = successes.reduce((acc, r) => acc + (r.credits_used ?? 0), 0);
+      if (successes.length) {
+        toast.success(
+          `Apollo: ${totalContacts} contato(s) enriquecido(s) em ${successes.length} empresa(s). ${creditsUsed} crédito(s) usado(s).`,
+        );
+      }
+      if (failures.length) {
+        toast.error(`Falha em ${failures.length} empresa(s). ${failures[0]?.error ?? ""}`);
+      }
+      setSelectedIds([]);
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+      qc.invalidateQueries({ queryKey: ["companies-page"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const { data: funnels = [] } = useQuery({
+    queryKey: ["funnels"],
+    queryFn: getFunnels,
+    enabled: dealDialogOpen,
+  });
+
+  useEffect(() => {
+    if (dealDialogOpen && !dealFunnelId && funnels.length > 0) {
+      setDealFunnelId(funnels[0].id);
+    }
+  }, [dealDialogOpen, dealFunnelId, funnels]);
+
+  const selectedCompanies = companies.filter((c) => selectedIds.includes(c.id));
+
+  const createDealsMutation = useMutation({
+    mutationFn: async () => {
+      if (!profile?.id) throw new Error("Sessão expirada.");
+      const results = await Promise.allSettled(
+        selectedCompanies.map((company) =>
+          createDeal({
+            title: `Negociação - ${company.name}`,
+            value: company.vgv_projected ?? null,
+            stage: dealStage,
+            funnel_id: dealFunnelId || null,
+            contact_id: null,
+            company_id: company.id,
+            owner_id: company.owner_id || profile.id,
+            expected_close: null,
+          }),
+        ),
+      );
+      const created = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - created;
+      return { created, failed };
+    },
+    onSuccess: ({ created, failed }) => {
+      if (created > 0) toast.success(`${created} negociação(ões) criada(s) no pipeline.`);
+      if (failed > 0) toast.error(`Falha ao criar ${failed} negociação(ões).`);
+      setDealDialogOpen(false);
+      setSelectedIds([]);
+      qc.invalidateQueries({ queryKey: ["deals"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  function handleExportCsv() {
+    if (selectedCompanies.length === 0) return;
+    exportCompaniesCsv(selectedCompanies);
+    toast.success(`${selectedCompanies.length} conta(s) exportada(s).`);
+  }
 
   function confirmDeleteCompany() {
     if (!deleting) return;
@@ -462,6 +595,47 @@ export default function Companies() {
           <ArrowUpDown className="h-4 w-4" />
         </Button>
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="font-medium">{selectedIds.length} conta(s) selecionada(s)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="gap-1.5"
+              disabled={enrichMutation.isPending}
+              onClick={() => enrichMutation.mutate(selectedIds)}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {enrichMutation.isPending ? "Enriquecendo..." : "Enriquecer com Apollo"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setDealDialogOpen(true)}
+            >
+              <Handshake className="h-3.5 w-3.5" />
+              Criar negociação
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={handleExportCsv}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Exportar CSV
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+              Limpar
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
@@ -746,6 +920,58 @@ export default function Companies() {
       </div>
 
       <CompanyForm open={formOpen} onOpenChange={setFormOpen} company={editing} />
+
+      <Dialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar negociação em lote</DialogTitle>
+            <DialogDescription>
+              Uma negociação será criada no pipeline para cada uma das {selectedCompanies.length} conta(s) selecionada(s).
+              O VGV projetado da conta é usado como valor inicial.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Funil</Label>
+              <Select value={dealFunnelId || "__none__"} onValueChange={(v) => setDealFunnelId(v === "__none__" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um funil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sem funil —</SelectItem>
+                  {funnels.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Estágio inicial</Label>
+              <Select value={dealStage} onValueChange={setDealStage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEAL_STAGES.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDealDialogOpen(false)} disabled={createDealsMutation.isPending}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => createDealsMutation.mutate()}
+              disabled={createDealsMutation.isPending || selectedCompanies.length === 0}
+            >
+              {createDealsMutation.isPending ? "Criando..." : `Criar ${selectedCompanies.length} negociação(ões)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>

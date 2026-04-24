@@ -197,7 +197,7 @@ export async function disconnectIntegration(name: IntegrationName): Promise<void
   if (error) throw error;
 }
 
-/** Testa conexão simulando uma chamada — no futuro pode chamar Edge Function */
+/** Testa conexão chamando Edge Function dedicada (quando houver) ou validação mínima. */
 export async function testConnection(
   name: IntegrationName,
   apiKey: string,
@@ -205,8 +205,36 @@ export async function testConnection(
   if (!apiKey.trim()) {
     return { ok: false, message: 'Informe a API key antes de testar.' };
   }
-  // Simulação: aceita qualquer chave com pelo menos 20 chars
-  await new Promise((r) => setTimeout(r, 1200));
+
+  if (name === 'apollo') {
+    try {
+      const { data, error } = await supabase.functions.invoke('apollo-test-connection', {
+        body: { api_key: apiKey },
+      });
+      if (error) {
+        const ctx = (error as { context?: Response })?.context;
+        let message = error.message;
+        if (ctx && typeof ctx.text === 'function') {
+          try {
+            const text = await ctx.text();
+            try {
+              const parsed = JSON.parse(text);
+              message = parsed.message ?? parsed.error ?? text;
+            } catch {
+              message = text;
+            }
+          } catch { /* noop */ }
+        }
+        return { ok: false, message };
+      }
+      return data as { ok: boolean; message: string };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // Fallback genérico: aceita qualquer chave com pelo menos 20 chars
+  await new Promise((r) => setTimeout(r, 400));
   if (apiKey.length >= 20) {
     return { ok: true, message: `Conexão com ${name} estabelecida com sucesso.` };
   }

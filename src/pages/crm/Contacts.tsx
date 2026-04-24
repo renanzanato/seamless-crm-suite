@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Upload, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Upload, Search, Pencil, Trash2, Linkedin, Sparkles, ChevronRight } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ContactForm } from '@/components/crm/ContactForm';
 import { ImportCSV } from '@/components/crm/ImportCSV';
@@ -19,6 +19,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getContacts, deleteContact, getProfiles } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -81,7 +82,14 @@ export default function Contacts() {
   }
 
   function openCreate() { setEditing(null); setFormOpen(true); }
-  function openEdit(c: Contact) { setEditing(c); setFormOpen(true); }
+  function openEdit(c: Contact, event: React.MouseEvent) {
+    event.stopPropagation();
+    setEditing(c);
+    setFormOpen(true);
+  }
+  function goToContact(c: Contact) {
+    navigate(`/crm/contatos/${c.id}`);
+  }
 
   return (
     <DashboardLayout>
@@ -137,6 +145,7 @@ export default function Contacts() {
               <TableHead>Cargo</TableHead>
               <TableHead>E-mail</TableHead>
               <TableHead>WhatsApp</TableHead>
+              <TableHead>LinkedIn</TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead>Responsável</TableHead>
               <TableHead>Criado em</TableHead>
@@ -144,27 +153,58 @@ export default function Contacts() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Carregando…
-                </TableCell>
+            {isLoading && Array.from({ length: 6 }).map((_, i) => (
+              <TableRow key={`skeleton-${i}`}>
+                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                <TableCell className="w-20"><Skeleton className="h-4 w-4 ml-auto" /></TableCell>
               </TableRow>
-            )}
+            ))}
             {!isLoading && contacts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                   Nenhum contato encontrado.
                 </TableCell>
               </TableRow>
             )}
             {contacts.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">{c.name}</TableCell>
+              <TableRow
+                key={c.id}
+                className="group cursor-pointer hover:bg-muted/40"
+                onClick={() => goToContact(c)}
+              >
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <span className="hover:underline">{c.name}</span>
+                    {c.enrichment_source && (
+                      <Sparkles className="h-3 w-3 text-primary" aria-label="Enriquecido" />
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="text-muted-foreground">{c.role ?? '—'}</TableCell>
                 <TableCell className="text-muted-foreground">{c.email ?? '—'}</TableCell>
-                <TableCell className="text-muted-foreground">{c.whatsapp ?? '—'}</TableCell>
-                <TableCell>
+                <TableCell className="text-muted-foreground">{c.whatsapp ?? c.phone ?? '—'}</TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  {c.linkedin_url ? (
+                    <a
+                      href={c.linkedin_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Linkedin className="h-3.5 w-3.5" /> Perfil
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {c.company ? (
                     <button
                       type="button"
@@ -179,20 +219,21 @@ export default function Contacts() {
                 <TableCell className="text-muted-foreground text-sm">
                   {format(new Date(c.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                 </TableCell>
-                <TableCell>
-                  <Can admin>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-end gap-1">
+                    <Can admin>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => openEdit(c, e)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                       <Button
                         variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => setDeleting(c)}
+                        onClick={(e) => { e.stopPropagation(); setDeleting(c); }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
-                    </div>
-                  </Can>
+                    </Can>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40" />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

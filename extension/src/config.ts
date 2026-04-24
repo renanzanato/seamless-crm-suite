@@ -1,2 +1,0 @@
-export const SUPABASE_URL = 'https://dsvkoeomtnwccxxcwwga.supabase.co'
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzdmtvZW9tdG53Y2N4eGN3d2dhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzOTkyOTIsImV4cCI6MjA5MDk3NTI5Mn0.lKYhSA9LO8Zpx8DANxj9lfa1CYeQBBCx7LBQC3sq1y8'

@@ -148,6 +148,16 @@ export async function getContacts(params: { search?: string; ownerId?: string } 
   return (data ?? []) as Contact[];
 }
 
+export async function getContact(id: string): Promise<Contact | null> {
+  const { data, error } = await supabase
+    .from('contacts')
+    .select(CONTACT_SELECT)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Contact | null) ?? null;
+}
+
 export async function getContactsByCompany(companyId: string): Promise<Contact[]> {
   const { data, error } = await supabase
     .from('contacts')
