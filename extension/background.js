@@ -122,6 +122,30 @@ async function readJson(response) {
   }
 }
 
+function compactErrorDetail(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatSupabaseError(data, status) {
+  const parts = [
+    data?.message,
+    data?.details,
+    data?.hint,
+    data?.code ? `code=${data.code}` : "",
+    data?.error_description,
+    data?.error,
+    data?.msg,
+  ].map(compactErrorDetail).filter(Boolean);
+
+  return parts.length ? parts.join(" | ") : `Erro HTTP ${status}`;
+}
+
 async function supabaseFetch(path, options = {}) {
   const url = new URL(`${SUPABASE_URL}${path}`);
   if (options.query) {
@@ -163,12 +187,7 @@ async function supabaseFetch(path, options = {}) {
   const data = await readJson(response);
 
   if (!response.ok) {
-    const message =
-      data?.message ||
-      data?.error_description ||
-      data?.error ||
-      data?.msg ||
-      `Erro HTTP ${response.status}`;
+    const message = formatSupabaseError(data, response.status);
     const error = new Error(message);
     error.status = response.status;
     error.data = data;
@@ -351,6 +370,47 @@ async function ensureSession() {
 
 // ── Lookup ───────────────────────────────────────────────
 
+async function findContactByWhatsappRpc(session, phone) {
+  const candidates = new Set([
+    toE164(phone),
+    ...toE164Variants(phone),
+    normalizePhone(phone),
+    ...buildPhoneVariants(phone),
+  ]);
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      const data = await supabaseFetch("/rest/v1/rpc/find_contact_by_whatsapp", {
+        method: "POST",
+        token: session.access_token,
+        body: { p_phone: candidate },
+      });
+      const row = Array.isArray(data) && data.length ? data[0] : null;
+      if (row) return row;
+    } catch (error) {
+      // Bancos antigos podem nao ter essa RPC; o lookup REST abaixo cobre o fallback.
+      if (error?.status === 404 || /find_contact_by_whatsapp|Could not find/i.test(error?.message || "")) return null;
+      console.warn("[Pipa] find_contact_by_whatsapp falhou; tentando lookup REST:", error?.message);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function queryContactByWhatsappExact(session, phone, select) {
+  const e164List = toE164Variants(phone);
+  return supabaseFetch("/rest/v1/contacts", {
+    token: session.access_token,
+    query: {
+      select,
+      whatsapp: `in.(${e164List.join(",")})`,
+      limit: 1,
+    },
+  });
+}
+
 async function lookupContact(payload) {
   const session = await ensureSession();
 
@@ -370,17 +430,17 @@ async function lookupContact(payload) {
     last_error: null,
   });
 
-  const e164List = toE164Variants(phone);
-  const data = await supabaseFetch("/rest/v1/contacts", {
-    token: session.access_token,
-    query: {
-      select: "id,name,company_id,is_orphan,wa_push_name",
-      whatsapp: `in.(${e164List.join(",")})`,
-      limit: 1,
-    },
-  });
-
-  const row = Array.isArray(data) && data.length ? data[0] : null;
+  let row = await findContactByWhatsappRpc(session, phone);
+  if (!row) {
+    let data;
+    try {
+      data = await queryContactByWhatsappExact(session, phone, "id,name,company_id,is_orphan,wa_push_name,whatsapp");
+    } catch (error) {
+      if (!/is_orphan|wa_push_name|column/i.test(error?.message || "")) throw error;
+      data = await queryContactByWhatsappExact(session, phone, "id,name,company_id,whatsapp");
+    }
+    row = Array.isArray(data) && data.length ? data[0] : null;
+  }
 
   const exists = Boolean(row);
   const relevant = Boolean(row);
@@ -413,6 +473,15 @@ async function lookupContact(payload) {
   });
 
   return normalized;
+}
+
+async function markNotApproved(phone, contactName = null) {
+  await patchStats({
+    last_status: "ignored_contact",
+    last_phone: phone,
+    last_contact_name: contactName,
+    last_error: "Contato nao aprovado para espelhamento. Crie/aprove o contato no CRM ou habilite auto-aprovacao na extensao.",
+  });
 }
 
 // ── Approve (opt-in pelo WhatsApp) ───────────────────────
@@ -587,6 +656,7 @@ async function syncMessage(payload) {
     chatTitle: flat.chatTitle,
   });
   if (!approvedContact) {
+    await markNotApproved(phone, flat.chatTitle || null);
     return { skipped: true, reason: "not_approved" };
   }
 
@@ -656,6 +726,7 @@ async function backfillChat(payload) {
     chatTitle: payload?.chatTitle,
   });
   if (!approvedContact) {
+    await markNotApproved(phone, payload?.chatTitle || null);
     return { skipped: true, reason: "not_approved" };
   }
 

@@ -642,7 +642,8 @@
         },
       });
 
-      if (response.ok) {
+      const skipped = Boolean(response.data?.skipped);
+      if (response.ok && !skipped) {
         for (const msg of messages) {
           if (msg?.id) rememberProcessedMessage(msg.id);
         }
@@ -653,7 +654,10 @@
         });
       } else {
         STATE.backfilledChats.delete(chatJid);
-        notifyUi({ status: "sync_failed", lastError: response.error || "Backfill falhou" });
+        notifyUi({
+          status: response.data?.reason === "not_approved" ? "ignored_contact" : "sync_failed",
+          lastError: response.error || response.data?.reason || "Backfill falhou",
+        });
       }
     } catch (error) {
       STATE.backfilledChats.delete(chatJid);
