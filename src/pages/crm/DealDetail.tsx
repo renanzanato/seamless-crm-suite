@@ -24,6 +24,7 @@ import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
 import { LogCallModal } from '@/components/activities/LogCallModal';
 import { CreateTaskModal } from '@/components/activities/CreateTaskModal';
 import { DealForm } from '@/components/crm/DealForm';
+import { InlineEdit, type InlineEditValue } from '@/components/crm/InlineEdit';
 import { Can } from '@/components/Can';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +39,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
-import { createNoteActivity, createStageChangeActivity } from '@/services/activitiesService';
+import {
+  createNoteActivity,
+  createStageChangeActivity,
+  updateDealProperty,
+} from '@/services/activitiesService';
 import { getDeal, updateDeal } from '@/services/crmService';
 import { DEAL_STAGES, type Deal } from '@/types';
 
@@ -81,6 +86,7 @@ export default function DealDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { profile, session } = useAuth();
+  const actorId = profile?.id ?? session?.user?.id ?? null;
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteBody, setNoteBody] = useState('');
@@ -106,7 +112,7 @@ export default function DealDetail() {
       contactId: deal?.contact_id ?? null,
       companyId: deal?.company_id ?? null,
       body,
-      createdBy: profile?.id ?? session?.user?.id ?? null,
+      createdBy: actorId,
     }),
     onSuccess: () => {
       toast.success('Nota adicionada.');
@@ -129,7 +135,7 @@ export default function DealDetail() {
         dealTitle: deal.title,
         fromStage,
         toStage,
-        createdBy: profile?.id ?? session?.user?.id ?? null,
+        createdBy: actorId,
       });
       return updated;
     },
@@ -142,6 +148,32 @@ export default function DealDetail() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const saveDealProperty = async (
+    field: string,
+    oldValue: string | number | null | undefined,
+    newValue: InlineEditValue,
+  ) => {
+    if (!deal) throw new Error('Deal nao carregado.');
+    await updateDealProperty({
+      id: deal.id,
+      field,
+      oldValue,
+      newValue,
+      createdBy: actorId,
+      scope: {
+        dealId: deal.id,
+        contactId: deal.contact_id,
+        companyId: deal.company_id,
+      },
+    });
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['deal', id] }),
+      qc.invalidateQueries({ queryKey: ['deals'] }),
+      qc.invalidateQueries({ queryKey: ['activities', 'deal', id] }),
+      refetch(),
+    ]);
+  };
 
   if (isLoading) {
     return (
@@ -439,10 +471,34 @@ export default function DealDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <PropertyRow label="Título" value={deal.title} />
-              <PropertyRow label="Stage" value={deal.stage} />
-              <PropertyRow label="Valor" value={formatCurrency(deal.value)} />
-              <PropertyRow label="Fechamento previsto" value={formatDate(deal.expected_close)} />
+              <InlineEdit
+                label="Título"
+                value={deal.title}
+                nullable={false}
+                onSave={(value) => saveDealProperty('title', deal.title, value)}
+              />
+              <InlineEdit
+                label="Stage"
+                value={deal.stage}
+                variant="select"
+                options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
+                nullable={false}
+                onSave={(value) => saveDealProperty('stage', deal.stage, value)}
+              />
+              <InlineEdit
+                label="Valor"
+                value={deal.value ?? null}
+                displayValue={formatCurrency(deal.value)}
+                variant="number"
+                onSave={(value) => saveDealProperty('value', deal.value ?? null, value)}
+              />
+              <InlineEdit
+                label="Fechamento previsto"
+                value={deal.expected_close ? deal.expected_close.slice(0, 10) : null}
+                displayValue={formatDate(deal.expected_close)}
+                variant="date"
+                onSave={(value) => saveDealProperty('expected_close', deal.expected_close ?? null, value)}
+              />
               <PropertyRow label="Funil" value={deal.funnel?.name ?? '—'} />
               <PropertyRow label="Empresa" value={deal.company?.name ?? '—'} />
               <PropertyRow label="Contato" value={deal.contact?.name ?? '—'} />
@@ -468,7 +524,7 @@ export default function DealDetail() {
         contactId={deal.contact_id}
         companyId={deal.company_id}
         dealId={deal.id}
-        createdBy={profile?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'deal', deal.id]}
       />
 
@@ -478,7 +534,7 @@ export default function DealDetail() {
         contactId={deal.contact_id}
         companyId={deal.company_id}
         dealId={deal.id}
-        createdBy={profile?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'deal', deal.id]}
       />
     </DashboardLayout>

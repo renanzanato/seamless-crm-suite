@@ -442,6 +442,20 @@ export async function updateRecordField(input: UpdateRecordFieldInput): Promise<
   }
 }
 
+export type UpdatePropertyInput = Omit<UpdateRecordFieldInput, "table">;
+
+export async function updateContactProperty(input: UpdatePropertyInput): Promise<void> {
+  return updateRecordField({ ...input, table: "contacts" });
+}
+
+export async function updateCompanyProperty(input: UpdatePropertyInput): Promise<void> {
+  return updateRecordField({ ...input, table: "companies" });
+}
+
+export async function updateDealProperty(input: UpdatePropertyInput): Promise<void> {
+  return updateRecordField({ ...input, table: "deals" });
+}
+
 export async function setTaskStatus(
   activityId: string,
   status: "pending" | "done" | "skipped",

@@ -12,6 +12,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Can } from '@/components/Can';
 import { ContactForm } from '@/components/crm/ContactForm';
 import { DealForm } from '@/components/crm/DealForm';
+import { InlineEdit, type InlineEditValue } from '@/components/crm/InlineEdit';
 import { LaunchForm } from '@/components/crm/LaunchForm';
 import { SignalManager } from '@/components/crm/SignalManager';
 import { WhatsAppTimeline } from '@/components/crm/WhatsAppTimeline';
@@ -28,7 +29,7 @@ import { getCompanyCadenceDay } from '@/lib/cadence';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { startCadenceForContacts, getInteractions, type Interaction } from '@/services/abmService';
-import { createNoteActivity } from '@/services/activitiesService';
+import { createNoteActivity, updateCompanyProperty } from '@/services/activitiesService';
 import { invokeAutomationWebhook } from '@/services/integrationService';
 import type { Company, Contact, CompanyLaunch, BuyingSignal, Deal } from '@/types';
 
@@ -52,6 +53,28 @@ const SIGNAL_TYPE_LABELS: Record<string, string> = {
   funding: 'Captação / investimento',
   custom: 'Sinal personalizado',
 };
+
+const COMPANY_STATUS_OPTIONS = [
+  { value: 'new', label: 'Nova' },
+  { value: 'prospecting', label: 'Em prospeccao' },
+  { value: 'contacted', label: 'Contactada' },
+  { value: 'meeting_booked', label: 'Reuniao marcada' },
+  { value: 'proposal', label: 'Proposta' },
+  { value: 'customer', label: 'Cliente' },
+  { value: 'lost', label: 'Perdida' },
+];
+
+const BUYING_SIGNAL_OPTIONS = [
+  { value: 'hot', label: 'Quente' },
+  { value: 'warm', label: 'Morno' },
+  { value: 'cold', label: 'Frio' },
+];
+
+const SALES_MODEL_OPTIONS = [
+  { value: 'internal', label: 'Interno' },
+  { value: 'external', label: 'Externo' },
+  { value: 'hybrid', label: 'Hibrido' },
+];
 
 interface CompanySignal {
   id: string;
@@ -582,6 +605,7 @@ export default function CompanyDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { isAdmin, profile, session } = useAuth();
+  const actorId = profile?.id ?? session?.user?.id ?? null;
   const [launchFormOpen, setLaunchFormOpen] = useState(false);
   const [editingLaunch, setEditingLaunch] = useState<CompanyLaunch | null>(null);
   const [signalManagerOpen, setSignalManagerOpen] = useState(false);
@@ -596,7 +620,7 @@ export default function CompanyDetail() {
     mutationFn: (body: string) => createNoteActivity({
       companyId: id!,
       body,
-      createdBy: profile?.id ?? session?.user?.id ?? null,
+      createdBy: actorId,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['activities', 'company', id] });
@@ -631,6 +655,26 @@ export default function CompanyDetail() {
       qc.invalidateQueries({ queryKey: ['abm-stats'] }),
       qc.invalidateQueries({ queryKey: ['account-stats'] }),
     ]);
+
+  const saveCompanyProperty = async (
+    field: string,
+    oldValue: string | number | null | undefined,
+    newValue: InlineEditValue,
+  ) => {
+    if (!company) throw new Error('Empresa nao carregada.');
+    await updateCompanyProperty({
+      id: company.id,
+      field,
+      oldValue,
+      newValue,
+      createdBy: actorId,
+      scope: { companyId: company.id },
+    });
+    await Promise.all([
+      refreshAutomationQueries(),
+      qc.invalidateQueries({ queryKey: ['activities', 'company', company.id] }),
+    ]);
+  };
 
   const simulateReplyMutation = useMutation({
     mutationFn: async () => {
@@ -1134,18 +1178,76 @@ export default function CompanyDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <CompanyProperty label="Responsável" value={company.owner?.name ?? '—'} />
-              <CompanyProperty label="Status" value={company.status ?? '—'} />
-              <CompanyProperty label="Sinal" value={signalCfg.label} />
+              <InlineEdit
+                label="Status"
+                value={company.status ?? null}
+                variant="select"
+                options={COMPANY_STATUS_OPTIONS}
+                nullable={false}
+                onSave={(value) => saveCompanyProperty('status', company.status ?? null, value)}
+              />
+              <InlineEdit
+                label="Sinal"
+                value={company.buying_signal}
+                displayValue={signalCfg.label}
+                variant="select"
+                options={BUYING_SIGNAL_OPTIONS}
+                nullable={false}
+                onSave={(value) => saveCompanyProperty('buying_signal', company.buying_signal, value)}
+              />
               <CompanyProperty label="Score" value={`${company.score_tier || 'C'} · ${company.icp_score || 0}/100`} />
-              <CompanyProperty label="Domínio" value={company.domain ?? '—'} />
-              <CompanyProperty label="CNPJ" value={company.cnpj ?? '—'} />
-              <CompanyProperty label="Cidade" value={company.city ?? '—'} />
-              <CompanyProperty label="Estado" value={company.state ?? '—'} />
-              <CompanyProperty label="Segmento" value={company.segment ?? '—'} />
-              <CompanyProperty label="Modelo comercial" value={company.sales_model ?? 'Não informado'} />
-              <CompanyProperty label="VGV projetado" value={fmtVGV(company.vgv_projected)} />
-              <CompanyProperty label="Mídia mensal" value={fmtVGV(company.monthly_media_spend)} />
-              <CompanyProperty label="Cadência" value={company.cadence_status ?? 'not_started'} />
+              <InlineEdit
+                label="Domínio"
+                value={company.domain ?? null}
+                onSave={(value) => saveCompanyProperty('domain', company.domain ?? null, value)}
+              />
+              <InlineEdit
+                label="CNPJ"
+                value={company.cnpj ?? null}
+                onSave={(value) => saveCompanyProperty('cnpj', company.cnpj ?? null, value)}
+              />
+              <InlineEdit
+                label="Cidade"
+                value={company.city ?? null}
+                onSave={(value) => saveCompanyProperty('city', company.city ?? null, value)}
+              />
+              <InlineEdit
+                label="Estado"
+                value={company.state ?? null}
+                onSave={(value) => saveCompanyProperty('state', company.state ?? null, value)}
+              />
+              <InlineEdit
+                label="Segmento"
+                value={company.segment ?? null}
+                onSave={(value) => saveCompanyProperty('segment', company.segment ?? null, value)}
+              />
+              <InlineEdit
+                label="Modelo comercial"
+                value={company.sales_model ?? null}
+                variant="select"
+                options={SALES_MODEL_OPTIONS}
+                onSave={(value) => saveCompanyProperty('sales_model', company.sales_model ?? null, value)}
+              />
+              <InlineEdit
+                label="VGV projetado"
+                value={company.vgv_projected ?? null}
+                displayValue={fmtVGV(company.vgv_projected)}
+                variant="number"
+                onSave={(value) => saveCompanyProperty('vgv_projected', company.vgv_projected ?? null, value)}
+              />
+              <InlineEdit
+                label="Mídia mensal"
+                value={company.monthly_media_spend ?? null}
+                displayValue={fmtVGV(company.monthly_media_spend)}
+                variant="number"
+                onSave={(value) => saveCompanyProperty('monthly_media_spend', company.monthly_media_spend ?? null, value)}
+              />
+              <InlineEdit
+                label="Cadência"
+                value={company.cadence_status ?? null}
+                nullable={false}
+                onSave={(value) => saveCompanyProperty('cadence_status', company.cadence_status ?? null, value)}
+              />
               <CompanyProperty label="Sinais" value={String(signals.length)} />
               <CompanyProperty label="Criada em" value={fmtDate(company.created_at)} />
             </CardContent>
@@ -1250,7 +1352,7 @@ export default function CompanyDetail() {
         open={callOpen}
         onOpenChange={setCallOpen}
         companyId={company.id}
-        createdBy={user?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'company', company.id]}
       />
 
@@ -1258,7 +1360,7 @@ export default function CompanyDetail() {
         open={taskOpen}
         onOpenChange={setTaskOpen}
         companyId={company.id}
-        createdBy={user?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'company', company.id]}
       />
     </DashboardLayout>

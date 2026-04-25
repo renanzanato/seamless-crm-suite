@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ContactForm } from '@/components/crm/ContactForm';
+import { InlineEdit, type InlineEditValue } from '@/components/crm/InlineEdit';
 import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
 import { LogCallModal } from '@/components/activities/LogCallModal';
 import { CreateTaskModal } from '@/components/activities/CreateTaskModal';
@@ -47,6 +48,7 @@ import { getContact, getContactRelations } from '@/services/crmService';
 import {
   createNoteActivity,
   getActivitiesForContact,
+  updateContactProperty,
   type Activity,
 } from '@/services/activitiesService';
 import { revealContactPhone } from '@/services/apolloService';
@@ -54,7 +56,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Contact } from '@/types';
+import { CONTACT_SOURCES, type Contact } from '@/types';
 
 const WATERFALL_TIMEOUT_MS = 90 * 1000;
 
@@ -91,6 +93,10 @@ const LIFECYCLE_LABEL: Record<string, string> = {
   evangelist: 'Evangelista',
   disqualified: 'Desqualificado',
 };
+
+const LIFECYCLE_OPTIONS = Object.entries(LIFECYCLE_LABEL).map(([value, label]) => ({ value, label }));
+const CONTACT_SOURCE_OPTIONS = CONTACT_SOURCES.map((source) => ({ value: source, label: source }));
+const SENIORITY_OPTIONS = Object.entries(SENIORITY_LABEL).map(([value, label]) => ({ value, label }));
 
 const SIGNAL_LABEL: Record<string, string> = {
   hot: 'Quente',
@@ -164,6 +170,7 @@ export default function ContactDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { profile, session } = useAuth();
+  const actorId = profile?.id ?? session?.user?.id ?? null;
   const [editOpen, setEditOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteBody, setNoteBody] = useState('');
@@ -218,7 +225,7 @@ export default function ContactDetail() {
       contactId: id!,
       companyId: contact?.company_id ?? null,
       body,
-      createdBy: profile?.id ?? session?.user?.id ?? null,
+      createdBy: actorId,
     }),
     onSuccess: () => {
       toast.success('Nota adicionada.');
@@ -228,6 +235,31 @@ export default function ContactDetail() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const saveContactProperty = async (
+    field: string,
+    oldValue: string | number | null | undefined,
+    newValue: InlineEditValue,
+  ) => {
+    if (!contact) throw new Error('Contato nao carregado.');
+    await updateContactProperty({
+      id: contact.id,
+      field,
+      oldValue,
+      newValue,
+      createdBy: actorId,
+      scope: {
+        contactId: contact.id,
+        companyId: contact.company_id ?? null,
+      },
+    });
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ['contact', id] }),
+      qc.invalidateQueries({ queryKey: ['contacts'] }),
+      qc.invalidateQueries({ queryKey: ['activities', 'contact', id] }),
+      refetch(),
+    ]);
+  };
 
   useEffect(() => {
     if (!waterfallUntil) return;
@@ -771,17 +803,59 @@ export default function ContactDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
-              <MetaRow label="Nome" value={contact.name} />
-              <MetaRow label="Lifecycle" value={lifecycle} />
+              <InlineEdit
+                label="Nome"
+                value={contact.name}
+                nullable={false}
+                onSave={(value) => saveContactProperty('name', contact.name, value)}
+              />
+              <InlineEdit
+                label="Lifecycle"
+                value={contact.lifecycle_stage ?? null}
+                displayValue={lifecycle}
+                variant="select"
+                options={LIFECYCLE_OPTIONS}
+                nullable={false}
+                onSave={(value) => saveContactProperty('lifecycle_stage', contact.lifecycle_stage ?? null, value)}
+              />
               <MetaRow label="Empresa" value={contact.company?.name ?? '—'} icon={Building2} />
-              <MetaRow label="Cargo" value={contact.role ?? '—'} />
-              <MetaRow label="Senioridade" value={contact.seniority ? (SENIORITY_LABEL[contact.seniority] ?? contact.seniority) : '—'} />
+              <InlineEdit
+                label="Cargo"
+                value={contact.role ?? null}
+                onSave={(value) => saveContactProperty('role', contact.role ?? null, value)}
+              />
+              <InlineEdit
+                label="Senioridade"
+                value={contact.seniority ?? null}
+                displayValue={contact.seniority ? (SENIORITY_LABEL[contact.seniority] ?? contact.seniority) : '—'}
+                variant="select"
+                options={SENIORITY_OPTIONS}
+                onSave={(value) => saveContactProperty('seniority', contact.seniority ?? null, value)}
+              />
               <MetaRow label="Departamentos" value={contact.departments?.length ? contact.departments.join(', ') : '—'} />
               <MetaRow label="Responsável" value={contact.owner?.name ?? '—'} icon={User} />
-              <MetaRow label="Origem" value={contact.source ?? '—'} />
-              <MetaRow label="E-mail" value={contact.email ?? '—'} icon={AtSign} />
-              <MetaRow label="WhatsApp" value={contact.whatsapp ?? '—'} icon={MessageCircle} />
-              <MetaRow label="Telefone" value={contact.phone ?? '—'} icon={Phone} />
+              <InlineEdit
+                label="Origem"
+                value={contact.source ?? null}
+                variant="select"
+                options={CONTACT_SOURCE_OPTIONS}
+                onSave={(value) => saveContactProperty('source', contact.source ?? null, value)}
+              />
+              <InlineEdit
+                label="E-mail"
+                value={contact.email ?? null}
+                onSave={(value) => saveContactProperty('email', contact.email ?? null, value)}
+              />
+              <InlineEdit
+                label="WhatsApp"
+                value={contact.whatsapp ?? null}
+                onSave={(value) => saveContactProperty('whatsapp', contact.whatsapp ?? null, value)}
+              />
+              <InlineEdit
+                label="Telefone"
+                value={contact.phone ?? null}
+                onSave={(value) => saveContactProperty('phone', contact.phone ?? null, value)}
+              />
               <MetaRow label="Criado em" value={formatDate(contact.created_at)} icon={Calendar} />
               {contact.enriched_at && (
                 <MetaRow
@@ -809,7 +883,7 @@ export default function ContactDetail() {
         onOpenChange={setCallOpen}
         contactId={contact.id}
         companyId={contact.company?.id ?? null}
-        createdBy={profile?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'contact', contact.id]}
       />
 
@@ -818,7 +892,7 @@ export default function ContactDetail() {
         onOpenChange={setTaskOpen}
         contactId={contact.id}
         companyId={contact.company?.id ?? null}
-        createdBy={profile?.id ?? null}
+        createdBy={actorId}
         invalidateKey={['activities', 'contact', contact.id]}
       />
 

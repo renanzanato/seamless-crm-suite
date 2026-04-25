@@ -212,7 +212,7 @@ Depois disso, começa Onda 8+ (automação/AI).
 ## Status
 
 - [x] Onda 0 — Consolidação (ver [ONDA_0_DONE.md](./ONDA_0_DONE.md))
-- [ ] Onda 1 — Record Detail com timeline
+- [x] Onda 1 — Record Detail com timeline (ver [PHASE_1G_DONE.md](./PHASE_1G_DONE.md))
   - [x] Phase 1A — `ConversationView` (bolhas WhatsApp) + toggle Conversa/Auditoria no `WhatsAppTimeline`
   - [x] Phase 1A.2 — captura de media real do WhatsApp (Storage + metadata + render de audio/imagem/video/documento/sticker)
   - [x] Phase 1B — `ActivityTimeline` unificado (ver [PHASE_1B_DONE.md](./PHASE_1B_DONE.md))
@@ -220,7 +220,7 @@ Depois disso, começa Onda 8+ (automação/AI).
   - [x] Phase 1D — `CompanyDetail` overhaul (mesmo tratamento) (ver [PHASE_1D_DONE.md](./PHASE_1D_DONE.md))
   - [x] Phase 1E — `DealDetail` (criar se não existe) (ver [PHASE_1E_DONE.md](./PHASE_1E_DONE.md))
   - [x] Phase 1F — Quick actions (LogCallModal + CreateTaskModal + DealForm wired; TaskItem persiste status) (ver [PHASE_1F_DONE.md](./PHASE_1F_DONE.md))
-  - [ ] Phase 1G — Property inline edit
+  - [x] Phase 1G — Property inline edit (ver [PHASE_1G_DONE.md](./PHASE_1G_DONE.md))
 - [ ] Onda 2 — Lists robustas
 - [ ] Onda 3 — Pipeline Kanban
 - [ ] Onda 4 — Today / Inbox
