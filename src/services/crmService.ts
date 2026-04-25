@@ -1,10 +1,10 @@
 import { supabase } from '@/lib/supabase';
-import type { Contact, Company, Deal, Funnel, Profile } from '@/types';
+import type { BuyingSignal, CompanyStatus, Contact, Company, Deal, Funnel, Profile } from '@/types';
 
 // ── SELECT fragments ────────────────────────────────────────────────────────
 const CONTACT_SELECT = '*, company:companies(id, name), owner:profiles(id, name)';
 const COMPANY_SELECT = '*, owner:profiles(id, name)';
-const DEAL_SELECT    = '*, funnel:funnels(id, name), contact:contacts(id, name), company:companies(id, name), owner:profiles(id, name)';
+const DEAL_SELECT    = '*, funnel:funnels(id, name), contact:contacts(id, name, email, whatsapp, phone, role), company:companies(id, name, city, segment, buying_signal), owner:profiles(id, name)';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function throwOnError<T>({ data, error }: { data: T | null; error: unknown }): T {
@@ -158,6 +158,85 @@ export async function getContact(id: string): Promise<Contact | null> {
   return (data as Contact | null) ?? null;
 }
 
+export interface ContactCompanySummary {
+  id: string;
+  name: string;
+  buying_signal: BuyingSignal | null;
+  city: string | null;
+  segment: string | null;
+  status: CompanyStatus | null;
+}
+
+export interface ContactDealSummary {
+  id: string;
+  title: string;
+  stage: string;
+  value: number | null;
+  expected_close: string | null;
+  company_id: string | null;
+  contact_id: string | null;
+}
+
+export interface ContactSiblingSummary {
+  id: string;
+  name: string;
+  role: string | null;
+  email: string | null;
+  whatsapp: string | null;
+}
+
+export interface ContactRelations {
+  company: ContactCompanySummary | null;
+  deals: ContactDealSummary[];
+  siblings: ContactSiblingSummary[];
+}
+
+export async function getContactRelations(
+  contactId: string,
+  companyId: string | null,
+): Promise<ContactRelations> {
+  const companyQuery = companyId
+    ? supabase
+        .from('companies')
+        .select('id, name, buying_signal, city, segment, status')
+        .eq('id', companyId)
+        .maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+
+  const dealsQuery = supabase
+    .from('deals')
+    .select('id, title, stage, value, expected_close, company_id, contact_id')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  const siblingsQuery = companyId
+    ? supabase
+        .from('contacts')
+        .select('id, name, role, email, whatsapp')
+        .eq('company_id', companyId)
+        .neq('id', contactId)
+        .order('name')
+        .limit(12)
+    : Promise.resolve({ data: [], error: null });
+
+  const [companyRes, dealsRes, siblingsRes] = await Promise.all([
+    companyQuery,
+    dealsQuery,
+    siblingsQuery,
+  ]);
+
+  if (companyRes.error) throw companyRes.error;
+  if (dealsRes.error) throw dealsRes.error;
+  if (siblingsRes.error) throw siblingsRes.error;
+
+  return {
+    company: (companyRes.data as ContactCompanySummary | null) ?? null,
+    deals: (dealsRes.data ?? []) as ContactDealSummary[],
+    siblings: (siblingsRes.data ?? []) as ContactSiblingSummary[],
+  };
+}
+
 export async function getContactsByCompany(companyId: string): Promise<Contact[]> {
   const { data, error } = await supabase
     .from('contacts')
@@ -230,6 +309,16 @@ export async function getDeals(params: { search?: string; stage?: string; ownerI
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []) as Deal[];
+}
+
+export async function getDeal(id: string): Promise<Deal | null> {
+  const { data, error } = await supabase
+    .from('deals')
+    .select(DEAL_SELECT)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Deal | null) ?? null;
 }
 
 export async function createDeal(payload: Omit<Deal, 'id' | 'created_at' | 'funnel' | 'contact' | 'company' | 'owner'>): Promise<Deal> {

@@ -23,10 +23,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { ConversationView, type ConversationMessage } from "@/components/whatsapp/ConversationView";
 
 type DbRecord = Record<string, unknown>;
 type MessageDirection = "inbound" | "outbound";
-type MessageType = "text" | "audio" | "image" | "video" | "document" | "media" | "unknown";
+type MessageType = "text" | "audio" | "image" | "video" | "document" | "sticker" | "media" | "unknown";
 type IngestionStatus = "saved" | "pending" | "processing" | "failed" | "unknown";
 type TranscriptStatus = "pending" | "done" | "failed" | "not_available" | null;
 
@@ -83,6 +84,10 @@ interface WhatsAppMessage {
   transcript: string | null;
   transcriptError: string | null;
   audioUrl: string | null;
+  mediaUrl: string | null;
+  mediaMime: string | null;
+  mediaName: string | null;
+  mediaSize: number | null;
   source: "table" | "raw_text";
 }
 
@@ -130,6 +135,17 @@ const MESSAGE_SELECT_RICH = `
   body, message_fingerprint, ingestion_status, ingestion_error,
   transcription_status, transcript, transcription_error, audio_url, media_url,
   metadata
+`;
+
+const MESSAGE_SELECT_TRANSCRIPT_METADATA = `
+  id, chat_key, company_id, contact_id, direction, message_type, occurred_at,
+  body, message_fingerprint, ingestion_status, ingestion_error,
+  transcription_status, transcript, transcription_error, metadata
+`;
+
+const MESSAGE_SELECT_METADATA = `
+  id, chat_key, company_id, contact_id, direction, message_type, occurred_at,
+  body, message_fingerprint, metadata
 `;
 
 const MESSAGE_SELECT_NEW = `
@@ -276,8 +292,17 @@ function normalizeTranscriptStatus(
 }
 
 function normalizeDirection(value: string | null): MessageDirection {
-  const normalized = value?.toLowerCase();
-  if (normalized === "outbound" || normalized === "sent" || normalized === "saida") return "outbound";
+  const normalized = value?.toLowerCase().trim();
+  if (
+    normalized === "outbound" ||
+    normalized === "out" ||
+    normalized === "sent" ||
+    normalized === "saida" ||
+    normalized === "from_me" ||
+    normalized === "true"
+  ) {
+    return "outbound";
+  }
   return "inbound";
 }
 
@@ -292,7 +317,13 @@ function inferMessageType(body: string | null): MessageType {
 function normalizeMessageType(value: string | null, body: string | null): MessageType {
   const normalized = value?.toLowerCase();
   if (normalized === "audio" || normalized === "voice" || normalized === "ptt") return "audio";
-  if (normalized === "image" || normalized === "video" || normalized === "document" || normalized === "media") return normalized;
+  if (
+    normalized === "image" ||
+    normalized === "video" ||
+    normalized === "document" ||
+    normalized === "sticker" ||
+    normalized === "media"
+  ) return normalized;
   if (normalized === "text") return "text";
   return inferMessageType(body);
 }
@@ -364,6 +395,8 @@ function normalizeDbMessage(row: DbRecord, conversation: WhatsAppConversation): 
     messageType,
   );
   const ingestionError = firstString(row.ingestion_error, metadata?.ingestion_error);
+  const mediaUrl = firstString(row.audio_url, row.media_url, metadata?.audio_url, metadata?.media_url);
+  const mediaSize = numberValue(row.media_size ?? row.media_size_bytes ?? metadata?.media_size ?? metadata?.media_size_bytes);
 
   return {
     id: firstString(row.id) ?? crypto.randomUUID(),
@@ -382,7 +415,11 @@ function normalizeDbMessage(row: DbRecord, conversation: WhatsAppConversation): 
     transcriptStatus,
     transcript,
     transcriptError,
-    audioUrl: firstString(row.audio_url, row.media_url, metadata?.audio_url, metadata?.media_url),
+    audioUrl: messageType === "audio" ? mediaUrl : firstString(row.audio_url, metadata?.audio_url),
+    mediaUrl,
+    mediaMime: firstString(row.media_mime, row.mime_type, metadata?.media_mime, metadata?.mime_type),
+    mediaName: firstString(row.media_filename, row.file_name, metadata?.media_filename, metadata?.file_name),
+    mediaSize: mediaSize > 0 ? mediaSize : null,
     source: "table",
   };
 }
@@ -427,6 +464,10 @@ function parseRawTextMessages(conversation: WhatsAppConversation) {
       transcript: null,
       transcriptError: null,
       audioUrl: null,
+      mediaUrl: null,
+      mediaMime: null,
+      mediaName: null,
+      mediaSize: null,
       source: "raw_text",
     };
   });
@@ -489,6 +530,20 @@ async function fetchWhatsAppMessages(conversation: WhatsAppConversation): Promis
     if (messages.length > 0) return { messages, source: "table", warning: null };
   } catch {
     // Optional media fields may not exist in the DB contract yet.
+  }
+
+  try {
+    const messages = await runByChatKey(MESSAGE_SELECT_TRANSCRIPT_METADATA);
+    if (messages.length > 0) return { messages, source: "table", warning: null };
+  } catch {
+    // Some schemas do not have transcript/ingestion fields yet.
+  }
+
+  try {
+    const messages = await runByChatKey(MESSAGE_SELECT_METADATA);
+    if (messages.length > 0) return { messages, source: "table", warning: null };
+  } catch {
+    // Metadata is part of the canonical mirror, but keep legacy fallbacks intact.
   }
 
   try {
@@ -614,6 +669,7 @@ function MessageTypeBadge({ type }: { type: MessageType }) {
     image: "Imagem",
     video: "Video",
     document: "Documento",
+    sticker: "Figurinha",
     media: "Midia",
     unknown: "Tipo incerto",
   };
@@ -683,8 +739,8 @@ function AudioStatus({ message }: { message: WhatsAppMessage }) {
         <TranscriptBadge status={message.transcriptStatus} />
       </div>
 
-      {message.audioUrl ? (
-        <audio controls src={message.audioUrl} className="w-full" />
+      {message.audioUrl || message.mediaUrl ? (
+        <audio controls src={message.audioUrl || message.mediaUrl || undefined} className="w-full" />
       ) : (
         <p className="text-xs text-muted-foreground">
           Audio salvo como mensagem. Arquivo de reproducao ainda nao esta anexado a este registro.
@@ -766,9 +822,40 @@ function MessageRow({ message }: { message: WhatsAppMessage }) {
         )}
 
         {message.messageType === "audio" && <AudioStatus message={message} />}
+        {message.mediaUrl && message.messageType !== "audio" && (
+          <a
+            href={message.mediaUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 flex items-center gap-2 rounded-md border bg-background/70 p-3 text-xs font-medium text-foreground no-underline"
+          >
+            <Database className="h-3.5 w-3.5 text-muted-foreground" />
+            Abrir midia capturada
+          </a>
+        )}
       </div>
     </div>
   );
+}
+
+function toConversationMessage(m: WhatsAppMessage, inboundSender: string): ConversationMessage {
+  return {
+    id: m.id,
+    direction: m.direction,
+    messageType: m.messageType,
+    body: m.body,
+    occurredAt: m.occurredAt,
+    timeLabel: m.timeLabel,
+    senderName: m.direction === "inbound" ? inboundSender : null,
+    audioUrl: m.audioUrl,
+    mediaUrl: m.mediaUrl,
+    mediaMime: m.mediaMime,
+    mediaName: m.mediaName,
+    mediaSize: m.mediaSize,
+    ingestionStatus: m.ingestionStatus,
+    ingestionError: m.ingestionError,
+    transcript: m.transcript,
+  };
 }
 
 function TimelineDetail({
@@ -782,6 +869,19 @@ function TimelineDetail({
   loading: boolean;
   onOpenCompany?: (companyId: string) => void;
 }) {
+  const [viewMode, setViewMode] = useState<"chat" | "audit">("chat");
+  const inboundSender =
+    conversation.contact?.name ||
+    conversation.contactName ||
+    conversation.title ||
+    conversation.phoneNumber ||
+    "Contato";
+
+  const bubbleMessages = useMemo(
+    () => result.messages.map((m) => toConversationMessage(m, inboundSender)),
+    [result.messages, inboundSender],
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-b p-4">
@@ -800,39 +900,65 @@ function TimelineDetail({
               {conversation.source && <span>origem: {conversation.source}</span>}
             </div>
           </div>
-          {conversation.companyId && onOpenCompany && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0 gap-1.5"
-              onClick={() => conversation.companyId && onOpenCompany(conversation.companyId)}
-            >
-              <Building2 className="h-3.5 w-3.5" />
-              Conta
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex items-center rounded-md border p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setViewMode("chat")}
+                className={cn(
+                  "rounded-sm px-2.5 py-1 font-medium transition-colors",
+                  viewMode === "chat" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Conversa
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("audit")}
+                className={cn(
+                  "rounded-sm px-2.5 py-1 font-medium transition-colors",
+                  viewMode === "audit" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Auditoria
+              </button>
+            </div>
+            {conversation.companyId && onOpenCompany && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => conversation.companyId && onOpenCompany(conversation.companyId)}
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                Conta
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-4">
-          <div className="rounded-md bg-muted/35 p-2">
-            <p className="text-muted-foreground">chat_key</p>
-            <p className="truncate font-mono font-medium">{conversation.chatKey || "nao informado"}</p>
+        {viewMode === "audit" && (
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-4">
+            <div className="rounded-md bg-muted/35 p-2">
+              <p className="text-muted-foreground">chat_key</p>
+              <p className="truncate font-mono font-medium">{conversation.chatKey || "nao informado"}</p>
+            </div>
+            <div className="rounded-md bg-muted/35 p-2">
+              <p className="text-muted-foreground">ID WhatsApp</p>
+              <p className="truncate font-mono font-medium">{conversation.providerChatId || "nao informado"}</p>
+            </div>
+            <div className="rounded-md bg-muted/35 p-2">
+              <p className="text-muted-foreground">Mensagens</p>
+              <p className="font-medium">{result.messages.length || conversation.messageCount || 0}</p>
+            </div>
+            <div className="rounded-md bg-muted/35 p-2">
+              <p className="text-muted-foreground">Leitura</p>
+              <p className="font-medium">{result.source === "raw_text" ? "texto salvo" : result.source === "table" ? "mensagens" : "sem dados"}</p>
+            </div>
           </div>
-          <div className="rounded-md bg-muted/35 p-2">
-            <p className="text-muted-foreground">ID WhatsApp</p>
-            <p className="truncate font-mono font-medium">{conversation.providerChatId || "nao informado"}</p>
-          </div>
-          <div className="rounded-md bg-muted/35 p-2">
-            <p className="text-muted-foreground">Mensagens</p>
-            <p className="font-medium">{result.messages.length || conversation.messageCount || 0}</p>
-          </div>
-          <div className="rounded-md bg-muted/35 p-2">
-            <p className="text-muted-foreground">Leitura</p>
-            <p className="font-medium">{result.source === "raw_text" ? "texto salvo" : result.source === "table" ? "mensagens" : "sem dados"}</p>
-          </div>
-        </div>
+        )}
 
         {conversation.ingestionError && (
           <Alert variant="destructive" className="mt-3 py-3">
@@ -842,7 +968,7 @@ function TimelineDetail({
           </Alert>
         )}
 
-        {conversation.summary && (
+        {conversation.summary && viewMode === "audit" && (
           <div className="mt-3 rounded-md border bg-muted/20 p-3">
             <p className="mb-1 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
               <Mic className="h-3.5 w-3.5" />
@@ -853,20 +979,29 @@ function TimelineDetail({
         )}
       </div>
 
-      <div className="min-h-[380px] flex-1 space-y-3 overflow-y-auto p-4">
+      <div
+        className={cn(
+          "min-h-[380px] flex-1 overflow-y-auto",
+          viewMode === "chat"
+            ? "bg-[#E5DDD5] dark:bg-[#0b141a]"
+            : "space-y-3 p-4",
+        )}
+      >
         {result.warning && (
-          <Alert className="py-3">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle className="text-sm">Exibicao parcial</AlertTitle>
-            <AlertDescription className="text-xs">{result.warning}</AlertDescription>
-          </Alert>
+          <div className={cn(viewMode === "chat" && "p-4")}>
+            <Alert className="py-3">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle className="text-sm">Exibicao parcial</AlertTitle>
+              <AlertDescription className="text-xs">{result.warning}</AlertDescription>
+            </Alert>
+          </div>
         )}
 
         {loading && (
-          <div className="space-y-3">
-            <Skeleton className="h-24 w-4/5" />
-            <Skeleton className="ml-auto h-24 w-3/4" />
-            <Skeleton className="h-24 w-5/6" />
+          <div className={cn("space-y-3", viewMode === "chat" && "p-4")}>
+            <Skeleton className="h-16 w-4/5" />
+            <Skeleton className="ml-auto h-16 w-3/4" />
+            <Skeleton className="h-16 w-5/6" />
           </div>
         )}
 
@@ -880,9 +1015,13 @@ function TimelineDetail({
           </div>
         )}
 
-        {!loading && result.messages.map((message) => (
-          <MessageRow key={message.id} message={message} />
-        ))}
+        {!loading && result.messages.length > 0 && viewMode === "chat" && (
+          <ConversationView messages={bubbleMessages} inboundLabel={inboundSender} />
+        )}
+
+        {!loading && result.messages.length > 0 && viewMode === "audit" &&
+          result.messages.map((message) => <MessageRow key={message.id} message={message} />)
+        }
       </div>
     </div>
   );

@@ -25,6 +25,8 @@ const DEFAULT_SETTINGS = {
 const CONTACT_CACHE_TTL_MS = 5 * 60 * 1000;
 const CONTACT_CACHE_MAX_ROWS = 600;
 const API_TIMEOUT_MS = 15000;
+const STORAGE_TIMEOUT_MS = 60000;
+const WHATSAPP_MEDIA_BUCKET = "whatsapp-media";
 
 const VALID_BRAZIL_DDDS = new Set([
   "11", "12", "13", "14", "15", "16", "17", "18", "19",
@@ -195,6 +197,147 @@ async function supabaseFetch(path, options = {}) {
   }
 
   return data;
+}
+
+function parseDataUrl(dataUrl) {
+  const match = String(dataUrl || "").match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/);
+  if (!match) return null;
+  return {
+    mime: match[1] || "application/octet-stream",
+    base64: match[2] ? match[3] : "",
+  };
+}
+
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function sanitizeStorageSegment(value, fallback = "item") {
+  const text = String(value || fallback)
+    .replace(/^wa:/i, "")
+    .replace(/[^a-zA-Z0-9._=-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 140);
+  return text || fallback;
+}
+
+function extensionFromMime(mime, fallbackType = "media") {
+  const normalized = String(mime || "").toLowerCase().split(";")[0];
+  const byMime = {
+    "audio/aac": "aac",
+    "audio/amr": "amr",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/ogg": "ogg",
+    "audio/opus": "opus",
+    "audio/wav": "wav",
+    "audio/webm": "webm",
+    "image/gif": "gif",
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/quicktime": "mov",
+    "video/webm": "webm",
+    "application/pdf": "pdf",
+  };
+  if (byMime[normalized]) return byMime[normalized];
+  if (normalized.includes("/")) return normalized.split("/").pop().replace(/[^a-z0-9]/g, "") || "bin";
+  if (fallbackType === "sticker") return "webp";
+  if (fallbackType === "audio") return "ogg";
+  return "bin";
+}
+
+function encodeStoragePath(path) {
+  return String(path || "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function publicStorageUrl(bucket, path) {
+  return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${encodeStoragePath(path)}`;
+}
+
+function isExistingObjectError(response, data) {
+  if (response.status === 409) return true;
+  const text = formatSupabaseError(data, response.status).toLowerCase();
+  return /already exists|duplicate|resource already exists|the resource already exists/.test(text);
+}
+
+async function uploadMediaObject(session, { path, dataUrl, mime }) {
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed?.base64) throw new Error("Media do WhatsApp veio em formato invalido.");
+
+  const bytes = base64ToBytes(parsed.base64);
+  const contentType = mime || parsed.mime || "application/octet-stream";
+  const url = `${SUPABASE_URL}/storage/v1/object/${WHATSAPP_MEDIA_BUCKET}/${encodeStoragePath(path)}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STORAGE_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": contentType,
+        "Cache-Control": "3600",
+        "x-upsert": "false",
+      },
+      body: bytes,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Tempo limite no upload da media do WhatsApp.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const data = await readJson(response);
+  if (!response.ok && !isExistingObjectError(response, data)) {
+    throw new Error(`Upload da media falhou: ${formatSupabaseError(data, response.status)}`);
+  }
+
+  return publicStorageUrl(WHATSAPP_MEDIA_BUCKET, path);
+}
+
+async function uploadMessageMedia(session, ownerId, chatKey, message) {
+  const inline = message?.media;
+  if (!inline?.data_url) return null;
+
+  const providerMessageId = String(message?.id || message?.raw_id || message?.wa_msg_id || "");
+  if (!providerMessageId) return null;
+
+  const type = String(message?.media_type || inline.type || message?.type || "media").toLowerCase();
+  const mime = String(message?.media_mime || inline.mime || "application/octet-stream");
+  const extension = sanitizeStorageSegment(inline.extension || extensionFromMime(mime, type), "bin").replace(/^\.+/, "") || "bin";
+  const ownerSegment = sanitizeStorageSegment(ownerId, "unknown-owner");
+  const chatSegment = sanitizeStorageSegment(chatKey, "unknown-chat");
+  const messageSegment = sanitizeStorageSegment(providerMessageId, "message");
+  const path = `${ownerSegment}/${chatSegment}/${messageSegment}.${extension}`;
+  const url = await uploadMediaObject(session, {
+    path,
+    dataUrl: inline.data_url,
+    mime,
+  });
+
+  return {
+    media_url: url,
+    media_mime: mime,
+    media_size: Number(message?.media_size || inline.size || 0) || null,
+    media_bucket: WHATSAPP_MEDIA_BUCKET,
+    media_path: path,
+    media_filename: message?.media_filename || inline.file_name || null,
+    media_type: type,
+  };
 }
 
 async function getSession() {
@@ -608,6 +751,13 @@ function normalizeFlatMessagePayload(payload) {
       rawTimestamp: payload.raw_timestamp || payload.rawTimestamp || null,
       timestamp: payload.timestamp_wa || payload.timestamp || new Date().toISOString(),
       chat_jid: payload.chat_jid || "",
+      has_media: Boolean(payload.has_media || payload.media?.data_url),
+      media: payload.media || null,
+      media_mime: payload.media_mime || payload.mime_type || null,
+      media_size: payload.media_size || payload.file_size || null,
+      media_filename: payload.media_filename || payload.file_name || null,
+      media_type: payload.media_type || payload.type || null,
+      media_download_error: payload.media_download_error || null,
     },
   };
 }
@@ -616,6 +766,7 @@ function mapMessageToRpc(message, chatId, chatKey) {
   const providerMessageId = String(message?.id || message?.raw_id || "");
   const timestamp = message?.timestamp_wa || message?.timestamp || new Date().toISOString();
   const body = message?.text || message?.content_md || "";
+  const type = message?.media_type || message?.type || "text";
   return {
     wa_msg_id: providerMessageId,
     provider_message_id: providerMessageId,
@@ -623,12 +774,47 @@ function mapMessageToRpc(message, chatId, chatKey) {
     chat_key: chatKey,
     from_me: message?.direction === "out" || message?.from_me === true,
     author: message?.author || null,
-    type: message?.type || "text",
+    type,
     body,
     timestamp,
-    has_media: message?.type === "audio" || message?.type === "media",
+    has_media: Boolean(message?.has_media || message?.media_url || message?.media?.data_url || ["audio", "image", "video", "document", "sticker", "media"].includes(String(type).toLowerCase())),
+    media_url: message?.media_url || null,
+    media_mime: message?.media_mime || message?.media?.mime || null,
+    media_size: message?.media_size || message?.media?.size || null,
+    media_bucket: message?.media_bucket || null,
+    media_path: message?.media_path || null,
+    media_filename: message?.media_filename || message?.media?.file_name || null,
+    media_type: message?.media_type || message?.media?.type || null,
+    media_download_error: message?.media_download_error || null,
     quoted_msg_id: message?.quoted_msg_id || null,
   };
+}
+
+async function prepareMessageForRpc(session, ownerId, chatId, chatKey, message) {
+  // Upload de media é best-effort. Se falhar (bucket não existe, sessão
+  // problema, mime bloqueado, rede), a mensagem segue sem media + um
+  // media_download_error pra rastreio. Não jogamos pra cima — perder
+  // a mensagem inteira por causa de uma media é pior que perder a media.
+  let uploadedMedia = null;
+  let uploadError = null;
+  try {
+    uploadedMedia = await uploadMessageMedia(session, ownerId, chatKey, message);
+  } catch (error) {
+    uploadError = error?.message || String(error);
+    console.warn("[Pipa] uploadMessageMedia falhou, sigo sem media:", uploadError);
+  }
+
+  const base = mapMessageToRpc(message, chatId, chatKey);
+  if (uploadedMedia) {
+    return { ...base, ...uploadedMedia };
+  }
+  if (uploadError) {
+    return {
+      ...base,
+      media_download_error: base.media_download_error || uploadError,
+    };
+  }
+  return base;
 }
 
 async function syncMessage(payload) {
@@ -668,9 +854,12 @@ async function syncMessage(payload) {
     push_name: approvedContact.name || null,
     profile_pic_url: null,
   };
-  const messagesPayload = [mapMessageToRpc(rawMessage, chatJid, chatKey)];
 
   try {
+    const messagesPayload = [
+      await prepareMessageForRpc(session, session.user?.id || "unknown-owner", chatJid, chatKey, rawMessage),
+    ];
+
     const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
       method: "POST",
       token: session.access_token,
@@ -757,9 +946,10 @@ async function backfillChat(payload) {
 
   try {
     for (let i = 0; i < incoming.length; i += CHUNK_SIZE) {
-      const chunk = incoming
-        .slice(i, i + CHUNK_SIZE)
-        .map((message) => mapMessageToRpc(message, chatJid, chatKey));
+      const chunk = [];
+      for (const message of incoming.slice(i, i + CHUNK_SIZE)) {
+        chunk.push(await prepareMessageForRpc(session, session.user?.id || "unknown-owner", chatJid, chatKey, message));
+      }
 
       const data = await supabaseFetch("/rest/v1/rpc/ingest_whatsapp_chat", {
         method: "POST",

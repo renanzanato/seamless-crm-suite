@@ -385,9 +385,12 @@
 
   function parseStructuredType(message) {
     const type = String(message?.type || "").toLowerCase();
+    const mediaType = String(message?.media_type || message?.media?.type || "").toLowerCase();
     if (IGNORED_MESSAGE_TYPES.has(type)) return type;
     if (["ptt", "audio"].includes(type)) return "audio";
-    if (message?.has_media || ["image", "video", "document", "sticker"].includes(type)) return "media";
+    if (["image", "video", "document", "sticker"].includes(type)) return type;
+    if (["audio", "image", "video", "document", "sticker"].includes(mediaType)) return mediaType;
+    if (message?.has_media) return "media";
     return "text";
   }
 
@@ -430,6 +433,13 @@
       rawTimestamp: message?.rawTimestamp || message?.raw_timestamp || null,
       timestamp,
       timestamp_wa: timestamp,
+      has_media: Boolean(message?.has_media || message?.media?.data_url || ["audio", "image", "video", "document", "sticker", "media"].includes(type)),
+      media: message?.media || null,
+      media_mime: message?.media_mime || message?.media?.mime || null,
+      media_size: message?.media_size || message?.media?.size || null,
+      media_filename: message?.media_filename || message?.media?.file_name || null,
+      media_type: message?.media_type || message?.media?.type || type,
+      media_download_error: message?.media_download_error || null,
       source: message?.source || "unknown",
     };
   }
@@ -541,7 +551,7 @@
   }
 
   async function syncMessage(message) {
-    if (message?.id && STATE.processedMessages.has(message.id)) return;
+    if (message?.id && STATE.processedMessages.has(message.id)) return true;
 
     let chatJid = String(message?.chat_jid || "").trim();
     let phone = chatJid ? normalizePhone(chatJid) : "";
@@ -551,8 +561,8 @@
       phone = normalizePhone(STATE.currentPhone || "");
       chatJid = chatJid || STATE.currentChatId || (phone ? `${phone}@c.us` : "");
     }
-    if (!phone) return;
-    if (/@g\.us/i.test(chatJid)) return;
+    if (!phone) return true;
+    if (/@g\.us/i.test(chatJid)) return true;
 
     const isCurrentChat = phone === normalizePhone(STATE.currentPhone || "");
 
@@ -584,6 +594,8 @@
         lastSyncAt: response.ok && !skipped ? new Date().toISOString() : "",
       });
     }
+
+    return response.ok;
   }
 
   function enqueueStructuredMessage(message) {
@@ -609,13 +621,24 @@
 
     STATE.processingNodes = true;
     try {
-      const structuredMessages = STATE.pendingStructuredMessages.splice(0);
-      for (const message of structuredMessages) {
-        if (!message || STATE.processedMessages.has(message.id)) continue;
-        await syncMessage(message);
+      while (STATE.pendingStructuredMessages.length > 0) {
+        const message = STATE.pendingStructuredMessages[0];
+        if (!message || STATE.processedMessages.has(message.id)) {
+          STATE.pendingStructuredMessages.shift();
+          continue;
+        }
+        let ok = false;
+        try {
+          ok = await syncMessage(message);
+        } catch {
+          ok = false;
+        }
+        if (!ok) break;
+        STATE.pendingStructuredMessages.shift();
       }
     } finally {
       STATE.processingNodes = false;
+      if (STATE.pendingStructuredMessages.length > 0) scheduleMessageScan(2000);
     }
   }
 

@@ -25,6 +25,15 @@ export type BuyingSignal = 'hot' | 'warm' | 'cold';
 export type CompanyStatus = 'new' | 'prospecting' | 'contacted' | 'meeting_booked' | 'proposal' | 'customer' | 'lost';
 export type SalesModel = 'internal' | 'external' | 'hybrid';
 export type ScoreTier = 'A' | 'B' | 'C';
+export type ContactLifecycleStage =
+  | 'subscriber'
+  | 'lead'
+  | 'mql'
+  | 'sql'
+  | 'opportunity'
+  | 'customer'
+  | 'evangelist'
+  | 'disqualified';
 
 export interface CompanyLaunch {
   id: string;
@@ -90,6 +99,7 @@ export interface Contact {
   phone?: string | null;
   whatsapp: string | null;
   company_id: string | null;
+  lifecycle_stage?: ContactLifecycleStage | null;
   source: string | null;
   owner_id: string;
   created_at: string;
@@ -116,8 +126,8 @@ export interface Deal {
   expected_close: string | null;
   created_at: string;
   funnel?: Pick<Funnel, 'id' | 'name'> | null;
-  contact?: Pick<Contact, 'id' | 'name'> | null;
-  company?: Pick<Company, 'id' | 'name'> | null;
+  contact?: (Pick<Contact, 'id' | 'name'> & Partial<Pick<Contact, 'email' | 'whatsapp' | 'phone' | 'role'>>) | null;
+  company?: (Pick<Company, 'id' | 'name'> & Partial<Pick<Company, 'city' | 'segment' | 'buying_signal'>>) | null;
   owner?: Pick<Profile, 'id' | 'name'> | null;
 }
 

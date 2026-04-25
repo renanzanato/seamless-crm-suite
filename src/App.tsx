@@ -19,7 +19,7 @@ import Integrations from "./pages/dados/Integrations.tsx";
 import HojePage from "./pages/HojePage.tsx";
 import CompanyDetail from "./pages/crm/CompanyDetail.tsx";
 import ContactDetail from "./pages/crm/ContactDetail.tsx";
-import CalendarPage from "./pages/CalendarPage.tsx";
+import DealDetail from "./pages/crm/DealDetail.tsx";
 import MensagensPage from "./pages/MensagensPage.tsx";
 
 const queryClient = new QueryClient();
@@ -39,9 +39,6 @@ const App = () => (
               <Route path="/dashboard" element={<Index />} />
               <Route path="/hoje" element={<HojePage />} />
               <Route path="/mensagens" element={<MensagensPage />} />
-              <Route path="/calendario" element={<CalendarPage />} />
-              <Route path="/metricas" element={<Navigate to="/dashboard?view=gtm" replace />} />
-              <Route path="/vendas" element={<Navigate to="/dashboard?view=sales" replace />} />
               <Route path="/settings" element={<PlaceholderPage />} />
               <Route path="/help" element={<PlaceholderPage />} />
 
@@ -51,6 +48,7 @@ const App = () => (
               <Route path="/crm/empresas" element={<Companies />} />
               <Route path="/crm/empresas/:id" element={<CompanyDetail />} />
               <Route path="/crm/negocios" element={<PipelinePage />} />
+              <Route path="/crm/negocios/:id" element={<DealDetail />} />
 
               {/* Funil */}
               <Route path="/funil" element={<Navigate to="/crm/negocios?tab=kanban" replace />} />

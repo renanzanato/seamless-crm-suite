@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
@@ -400,6 +400,12 @@ export default function PipelinePage() {
   const [boardLoading, setBoardLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const setTab = useCallback((tab: string) => {
+    const next = new URLSearchParams(params);
+    next.set("tab", tab);
+    setParams(next);
+  }, [params, setParams]);
+
   const { data: deals = [], isLoading } = useQuery({
     queryKey: ["deals", search, stageFilter, ownerFilter],
     queryFn: () =>
@@ -426,7 +432,7 @@ export default function PipelinePage() {
     if (!isAdmin && (activeTab === "automacoes" || activeTab === "estrutura")) {
       setTab("lista");
     }
-  }, [activeTab, isAdmin]);
+  }, [activeTab, isAdmin, setTab]);
 
   useEffect(() => {
     getFunnels().then((data) => {
@@ -475,12 +481,6 @@ export default function PipelinePage() {
   }
 
   const selectedFunnel = funnels.find((funnel) => funnel.id === selectedFunnelId);
-
-  function setTab(tab: string) {
-    const next = new URLSearchParams(params);
-    next.set("tab", tab);
-    setParams(next);
-  }
 
   function openCreate() {
     setEditing(null);
@@ -563,7 +563,15 @@ export default function PipelinePage() {
                 {!isLoading && deals.length === 0 && <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">Nenhum negócio encontrado.</TableCell></TableRow>}
                 {deals.map((deal) => (
                   <TableRow key={deal.id}>
-                    <TableCell className="max-w-[180px] truncate font-medium">{deal.title}</TableCell>
+                    <TableCell className="max-w-[180px] truncate font-medium">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/crm/negocios/${deal.id}`)}
+                        className="max-w-full truncate text-left hover:text-primary hover:underline"
+                      >
+                        {deal.title}
+                      </button>
+                    </TableCell>
                     <TableCell className="font-mono text-sm">{formatCurrency(deal.value)}</TableCell>
                     <TableCell><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[deal.stage] ?? "bg-muted text-muted-foreground"}`}>{deal.stage}</span></TableCell>
                     <TableCell className="text-muted-foreground">{deal.funnel?.name ?? "—"}</TableCell>

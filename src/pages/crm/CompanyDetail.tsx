@@ -6,24 +6,31 @@ import {
   ArrowLeft, Flame, Thermometer, Snowflake, Rocket, ExternalLink,
   Users, MessageSquare, Linkedin, Phone, Plus, Mail,
   TrendingUp, BarChart3, Globe, Instagram, Play, CheckCircle2,
-  Zap, Clock, AlertCircle, Pencil,
+  Zap, Clock, AlertCircle, Pencil, StickyNote, Loader2,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Can } from '@/components/Can';
 import { ContactForm } from '@/components/crm/ContactForm';
+import { DealForm } from '@/components/crm/DealForm';
 import { LaunchForm } from '@/components/crm/LaunchForm';
 import { SignalManager } from '@/components/crm/SignalManager';
 import { WhatsAppTimeline } from '@/components/crm/WhatsAppTimeline';
+import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
+import { LogCallModal } from '@/components/activities/LogCallModal';
+import { CreateTaskModal } from '@/components/activities/CreateTaskModal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { getCompanyCadenceDay } from '@/lib/cadence';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { startCadenceForContacts, getInteractions, type Interaction } from '@/services/abmService';
+import { createNoteActivity } from '@/services/activitiesService';
 import { invokeAutomationWebhook } from '@/services/integrationService';
-import type { Company, Contact, CompanyLaunch, BuyingSignal } from '@/types';
+import type { Company, Contact, CompanyLaunch, BuyingSignal, Deal } from '@/types';
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -31,6 +38,31 @@ const SIGNAL_CFG: Record<BuyingSignal, { label: string; icon: React.ElementType;
   hot:  { label: 'Burning — conta prioritária',  icon: Flame,       style: 'text-orange-500' },
   warm: { label: 'Aquecida — boa oportunidade',  icon: Thermometer, style: 'text-yellow-500' },
   cold: { label: 'Fria — sem sinais claros',     icon: Snowflake,   style: 'text-blue-400' },
+};
+
+const SIGNAL_TYPE_LABELS: Record<string, string> = {
+  new_launch: 'Novo lançamento previsto',
+  hiring_sales: 'Contratando time comercial',
+  hiring_marketing: 'Contratando time de marketing',
+  running_ads: 'Rodando mídia paga',
+  slow_response: 'Lead oculto: resposta lenta',
+  no_followup: 'Lead oculto: sem follow-up',
+  vgv_pressure: 'Pressão de VGV',
+  competitor_change: 'Mudança de concorrente/parceiro',
+  funding: 'Captação / investimento',
+  custom: 'Sinal personalizado',
+};
+
+interface CompanySignal {
+  id: string;
+  signal_type: string;
+  description: string | null;
+  detected_at: string;
+  source: string;
+}
+
+type CompanyDeal = Pick<Deal, 'id' | 'title' | 'value' | 'stage' | 'expected_close' | 'contact_id'> & {
+  contact?: Pick<Contact, 'id' | 'name'> | null;
 };
 
 function fmtVGV(v: number | null) {
@@ -410,17 +442,170 @@ function InteractionFeed({ companyId }: { companyId: string }) {
   );
 }
 
+function SidebarContactRow({
+  contact,
+  onOpen,
+}: {
+  contact: Contact;
+  onOpen: (id: string) => void;
+}) {
+  const whatsappHref = contact.whatsapp ? toWhatsAppHref(contact.whatsapp) : null;
+
+  return (
+    <div className="rounded-lg border bg-background px-3 py-2">
+      <button
+        type="button"
+        onClick={() => onOpen(contact.id)}
+        className="block w-full text-left"
+      >
+        <p className="truncate text-sm font-medium hover:text-primary hover:underline">{contact.name}</p>
+        <p className="truncate text-xs text-muted-foreground">{contact.role || 'Cargo não informado'}</p>
+      </button>
+      <div className="mt-2 flex items-center gap-1">
+        {whatsappHref && (
+          <a href={whatsappHref} target="_blank" rel="noreferrer">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-green-500">
+              <MessageSquare className="h-3.5 w-3.5" />
+            </Button>
+          </a>
+        )}
+        {contact.email && (
+          <a href={`mailto:${contact.email}`}>
+            <Button variant="ghost" size="icon" className="h-7 w-7">
+              <Mail className="h-3.5 w-3.5" />
+            </Button>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SidebarDealRow({
+  deal,
+  onOpen,
+}: {
+  deal: CompanyDeal;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(deal.id)}
+      className="block w-full rounded-lg border bg-background px-3 py-2 text-left transition hover:border-primary/40 hover:bg-primary/5"
+    >
+      <p className="line-clamp-2 text-sm font-medium">{deal.title}</p>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span>{deal.stage}</span>
+        <span>·</span>
+        <span>{fmtVGV(deal.value)}</span>
+      </div>
+      {deal.contact?.name && (
+        <p className="mt-1 truncate text-xs text-muted-foreground">Contato: {deal.contact.name}</p>
+      )}
+    </button>
+  );
+}
+
+function CompanyProperty({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="max-w-[62%] text-right text-sm font-medium">{value}</span>
+    </div>
+  );
+}
+
+function SignalsTab({
+  signals,
+  onManage,
+  canManage,
+}: {
+  signals: CompanySignal[];
+  onManage: () => void;
+  canManage: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Sinais de compra</h2>
+          <p className="text-sm text-muted-foreground">Eventos que alimentam o score e prioridade da conta.</p>
+        </div>
+        {canManage && (
+          <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={onManage}>
+            <Zap className="h-4 w-4" /> Gerenciar
+          </Button>
+        )}
+      </div>
+
+      {signals.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            <Zap className="mx-auto mb-2 h-8 w-8 opacity-30" />
+            <p className="text-sm">Nenhum sinal cadastrado.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {signals.map((signal) => (
+            <div key={signal.id} className="rounded-lg border bg-background p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium">
+                  {SIGNAL_TYPE_LABELS[signal.signal_type] ?? signal.signal_type}
+                </p>
+                <Badge variant="outline" className="text-[10px]">{signal.source}</Badge>
+              </div>
+              {signal.description && (
+                <p className="mt-1 text-sm text-muted-foreground">{signal.description}</p>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground/70">
+                {new Date(signal.detected_at).toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────
 
 export default function CompanyDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile, session } = useAuth();
   const [launchFormOpen, setLaunchFormOpen] = useState(false);
   const [editingLaunch, setEditingLaunch] = useState<CompanyLaunch | null>(null);
   const [signalManagerOpen, setSignalManagerOpen] = useState(false);
   const [contactFormOpen, setContactFormOpen] = useState(false);
+  const [dealFormOpen, setDealFormOpen] = useState(false);
+  const [noteDraftOpen, setNoteDraftOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [callOpen, setCallOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+
+  const noteMutation = useMutation({
+    mutationFn: (body: string) => createNoteActivity({
+      companyId: id!,
+      body,
+      createdBy: profile?.id ?? session?.user?.id ?? null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activities', 'company', id] });
+      toast.success('Nota salva.');
+      setNoteDraft('');
+      setNoteDraftOpen(false);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const { data: company, isLoading } = useQuery({
     queryKey: ['company', id],
@@ -546,6 +731,20 @@ export default function CompanyDetail() {
     enabled: !!id,
   });
 
+  const { data: deals = [] } = useQuery({
+    queryKey: ['deals-by-company', id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('deals')
+        .select('id, title, value, stage, expected_close, contact_id, contact:contacts(id, name)')
+        .eq('company_id', id!)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as CompanyDeal[];
+    },
+    enabled: !!id,
+  });
+
   const { data: signals = [] } = useQuery({
     queryKey: ['account-signals', id],
     queryFn: async () => {
@@ -554,7 +753,7 @@ export default function CompanyDetail() {
         .select('*')
         .eq('company_id', id!)
         .order('detected_at', { ascending: false });
-      return data || [];
+      return (data || []) as CompanySignal[];
     },
     enabled: !!id,
   });
@@ -652,6 +851,46 @@ export default function CompanyDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setNoteDraftOpen((v) => !v)}
+          >
+            <StickyNote className="h-3.5 w-3.5" /> Nota
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setCallOpen(true)}
+          >
+            <Phone className="h-3.5 w-3.5" /> Call
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setTaskOpen(true)}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" /> Task
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setContactFormOpen(true)}
+          >
+            <Users className="h-3.5 w-3.5" /> Contato
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setDealFormOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Deal
+          </Button>
           <Can admin>
             <Button variant="outline" size="sm" className="gap-1" onClick={() => setSignalManagerOpen(true)}>
               <Zap className="h-3.5 w-3.5" /> Sinais
@@ -674,6 +913,38 @@ export default function CompanyDetail() {
         </div>
       </div>
 
+      {/* Note drawer (inline) */}
+      {noteDraftOpen && (
+        <Card className="mb-6">
+          <CardContent className="space-y-2 p-3">
+            <Textarea
+              autoFocus
+              rows={3}
+              placeholder="Escreva uma nota sobre esta conta…"
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setNoteDraft(''); setNoteDraftOpen(false); }}
+                disabled={noteMutation.isPending}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => noteMutation.mutate(noteDraft)}
+                disabled={noteMutation.isPending || !noteDraft.trim()}
+              >
+                {noteMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salvar nota'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
@@ -694,8 +965,8 @@ export default function CompanyDetail() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+        <aside className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-3">
@@ -718,88 +989,194 @@ export default function CompanyDetail() {
                   <p className="text-xs mt-1">Adicione diretor comercial, CMO, CEO ou sócio.</p>
                 </div>
               ) : (
-                <div>{contacts.map(c => <ContactRow key={c.id} contact={c} />)}</div>
+                <div className="space-y-2">
+                  {contacts.map(c => (
+                    <SidebarContactRow
+                      key={c.id}
+                      contact={c}
+                      onOpen={(contactId) => navigate(`/crm/contatos/${contactId}`)}
+                    />
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">Lançamentos</h2>
-                <p className="text-sm text-muted-foreground">Visão direta dos empreendimentos da conta.</p>
-              </div>
-              <Can admin>
-                <Button type="button" size="sm" className="gap-1.5" onClick={handleAddLaunch}>
-                  <Plus className="h-4 w-4" /> Adicionar lançamento
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Deals da conta</CardTitle>
+                  <p className="mt-1 text-xs text-muted-foreground">Negócios vinculados por empresa.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => setDealFormOpen(true)}>
+                  <Plus className="h-4 w-4" /> Deal
                 </Button>
-              </Can>
-            </div>
-
-            {launches.length === 0 ? (
-              <Card>
-                <CardContent className="py-10 text-center text-muted-foreground">
-                  <Rocket className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Nenhum lançamento cadastrado.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              launches.map((launch) => (
-                <LaunchCard
-                  key={launch.id}
-                  launch={launch}
-                  onEdit={handleEditLaunch}
-                  canEdit={isAdmin}
-                />
-              ))
-            )}
-          </div>
-
-          <WhatsAppTimeline
-            companyId={company.id}
-            compact
-            storageKey={`whatsapp-company-${company.id}`}
-            title="WhatsApp"
-            description="Historico capturado pela extensao, com mensagens, audio e transcricao quando existir."
-          />
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Interações recentes</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
-              <InteractionFeed companyId={company.id} />
+              {deals.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Briefcase className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nenhum deal vinculado.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {deals.map((deal) => (
+                    <SidebarDealRow
+                      key={deal.id}
+                      deal={deal}
+                      onOpen={(dealId) => navigate(`/crm/negocios/${dealId}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
-        </div>
+        </aside>
 
-        <div className="space-y-4">
+        <main className="min-w-0 space-y-6">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Cadência</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CadenceTimeline company={company} contacts={contacts} />
+            <CardContent className="p-3">
+              <Tabs defaultValue="timeline" className="w-full">
+                <TabsList className="mb-3 flex h-auto flex-wrap justify-start">
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  <TabsTrigger value="launches">Lançamentos</TabsTrigger>
+                  <TabsTrigger value="signals">Sinais</TabsTrigger>
+                  <TabsTrigger value="cadence">Cadência</TabsTrigger>
+                  <TabsTrigger value="whatsapp">Conversa WhatsApp</TabsTrigger>
+                  <TabsTrigger value="interactions">Interações (legacy)</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="timeline" className="mt-0">
+                  <ActivityTimeline
+                    companyId={company.id}
+                    emptyHint="Quando um contato dessa conta responder no WhatsApp ou você adicionar uma nota, aparece aqui."
+                    onAddNote={() => setNoteDraftOpen(true)}
+                  />
+                </TabsContent>
+
+                <TabsContent value="launches" className="mt-0">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold">Lançamentos</h2>
+                        <p className="text-sm text-muted-foreground">Visão direta dos empreendimentos da conta.</p>
+                      </div>
+                      <Can admin>
+                        <Button type="button" size="sm" className="gap-1.5" onClick={handleAddLaunch}>
+                          <Plus className="h-4 w-4" /> Adicionar lançamento
+                        </Button>
+                      </Can>
+                    </div>
+
+                    {launches.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-10 text-center text-muted-foreground">
+                          <Rocket className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">Nenhum lançamento cadastrado.</p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      launches.map((launch) => (
+                        <LaunchCard
+                          key={launch.id}
+                          launch={launch}
+                          onEdit={handleEditLaunch}
+                          canEdit={isAdmin}
+                        />
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="signals" className="mt-0">
+                  <SignalsTab
+                    signals={signals}
+                    onManage={() => setSignalManagerOpen(true)}
+                    canManage={isAdmin}
+                  />
+                </TabsContent>
+
+                <TabsContent value="cadence" className="mt-0">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Cadência</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <CadenceTimeline company={company} contacts={contacts} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="whatsapp" className="mt-0">
+                  <WhatsAppTimeline
+                    companyId={company.id}
+                    compact
+                    storageKey={`whatsapp-company-${company.id}`}
+                    title="WhatsApp"
+                    description="Historico capturado pela extensao, com mensagens, audio e transcricao quando existir."
+                  />
+                </TabsContent>
+
+                <TabsContent value="interactions" className="mt-0">
+                  <InteractionFeed companyId={company.id} />
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
+        </main>
 
+        <aside className="space-y-4">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Contexto da conta</CardTitle>
+              <CardTitle className="text-base">Propriedades</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="rounded-lg bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">Modelo comercial</p>
-                <p className="text-sm font-medium">{company.sales_model || 'Não informado'}</p>
-              </div>
-              <div className="rounded-lg bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">Mídia mensal</p>
-                <p className="text-sm font-medium">{fmtVGV(company.monthly_media_spend)}</p>
-              </div>
-              <div className="rounded-lg bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">Sinais registrados</p>
-                <p className="text-sm font-medium">{signals.length}</p>
-              </div>
+              <CompanyProperty label="Responsável" value={company.owner?.name ?? '—'} />
+              <CompanyProperty label="Status" value={company.status ?? '—'} />
+              <CompanyProperty label="Sinal" value={signalCfg.label} />
+              <CompanyProperty label="Score" value={`${company.score_tier || 'C'} · ${company.icp_score || 0}/100`} />
+              <CompanyProperty label="Domínio" value={company.domain ?? '—'} />
+              <CompanyProperty label="CNPJ" value={company.cnpj ?? '—'} />
+              <CompanyProperty label="Cidade" value={company.city ?? '—'} />
+              <CompanyProperty label="Estado" value={company.state ?? '—'} />
+              <CompanyProperty label="Segmento" value={company.segment ?? '—'} />
+              <CompanyProperty label="Modelo comercial" value={company.sales_model ?? 'Não informado'} />
+              <CompanyProperty label="VGV projetado" value={fmtVGV(company.vgv_projected)} />
+              <CompanyProperty label="Mídia mensal" value={fmtVGV(company.monthly_media_spend)} />
+              <CompanyProperty label="Cadência" value={company.cadence_status ?? 'not_started'} />
+              <CompanyProperty label="Sinais" value={String(signals.length)} />
+              <CompanyProperty label="Criada em" value={fmtDate(company.created_at)} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Links</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {company.website && (
+                <a href={company.website} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm" className="w-full justify-start gap-1.5">
+                    <Globe className="h-4 w-4" /> Site
+                  </Button>
+                </a>
+              )}
+              {company.linkedin_url && (
+                <a href={company.linkedin_url} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm" className="w-full justify-start gap-1.5">
+                    <Linkedin className="h-4 w-4" /> LinkedIn
+                  </Button>
+                </a>
+              )}
+              {company.instagram_url && (
+                <a href={company.instagram_url} target="_blank" rel="noreferrer">
+                  <Button variant="outline" size="sm" className="w-full justify-start gap-1.5">
+                    <Instagram className="h-4 w-4" /> Instagram
+                  </Button>
+                </a>
+              )}
               <Can admin>
                 <Button variant="outline" size="sm" className="w-full gap-1.5" onClick={() => setSignalManagerOpen(true)}>
                   <Zap className="h-4 w-4" /> Gerenciar sinais
@@ -840,7 +1217,7 @@ export default function CompanyDetail() {
               </CardContent>
             </Card>
           </Can>
-        </div>
+        </aside>
       </div>
 
       {isAdmin && (
@@ -862,6 +1239,27 @@ export default function CompanyDetail() {
         open={contactFormOpen}
         onOpenChange={setContactFormOpen}
         defaultCompanyId={company.id}
+      />
+      <DealForm
+        open={dealFormOpen}
+        onOpenChange={setDealFormOpen}
+        defaultCompanyId={company.id}
+      />
+
+      <LogCallModal
+        open={callOpen}
+        onOpenChange={setCallOpen}
+        companyId={company.id}
+        createdBy={user?.id ?? null}
+        invalidateKey={['activities', 'company', company.id]}
+      />
+
+      <CreateTaskModal
+        open={taskOpen}
+        onOpenChange={setTaskOpen}
+        companyId={company.id}
+        createdBy={user?.id ?? null}
+        invalidateKey={['activities', 'company', company.id]}
       />
     </DashboardLayout>
   );

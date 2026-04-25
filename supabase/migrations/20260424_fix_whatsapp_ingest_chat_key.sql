@@ -465,6 +465,38 @@ BEGIN
 
     IF v_ins IS NOT NULL THEN
       v_inserted := v_inserted + 1;
+
+      -- Dual-write na timeline unificada (activities). A tabela
+      -- activities é criada pela migration 20260424_activities_table.sql.
+      -- Protegido contra falha caso a migration nao tenha rodado.
+      BEGIN
+        INSERT INTO public.activities (
+          kind, body, direction, occurred_at, created_by,
+          contact_id, company_id, payload
+        )
+        VALUES (
+          'whatsapp',
+          v_body,
+          CASE WHEN v_direction = 'outbound' THEN 'out' ELSE 'in' END,
+          v_ts,
+          v_owner,
+          v_contact_id,
+          v_company_id,
+          jsonb_build_object(
+            'wa_message_id', v_wa_msg_id,
+            'wa_chat_id',    v_wa_chat_id,
+            'chat_key',      v_msg_chat_key,
+            'message_type',  v_type,
+            'author',        v_msg->>'author',
+            'quoted_msg_id', v_msg->>'quoted_msg_id',
+            'has_media',     v_msg->>'has_media'
+          )
+        )
+        ON CONFLICT DO NOTHING;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN undefined_column THEN NULL;
+      END;
     ELSE
       v_skipped := v_skipped + 1;
     END IF;

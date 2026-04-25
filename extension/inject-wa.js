@@ -30,6 +30,8 @@
     "document",
     "sticker",
   ]);
+  const MEDIA_MESSAGE_TYPES = new Set(["audio", "image", "video", "document", "sticker", "media"]);
+  const MAX_INLINE_MEDIA_BYTES = 25 * 1024 * 1024;
   const ignoredMessageTypes = new Set([
     "call_log",
     "ciphertext",
@@ -373,8 +375,9 @@
   function getMessageType(object, text) {
     const type = String(firstPath(object, [["type"], ["mediaData", "type"], ["__x_type"]]) || "").toLowerCase();
     if (["ptt", "audio"].includes(type)) return "audio";
+    if (["image", "video", "document", "sticker"].includes(type)) return type;
     if (text) return "text";
-    if (["image", "video", "document", "sticker"].includes(type) || object.mediaKey || object.isMedia) return "media";
+    if (object.mediaKey || object.isMedia) return "media";
     return type || "text";
   }
 
@@ -516,7 +519,167 @@
   // via WPP.chat.getMessages. Compartilha as mesmas regras de filtro que a
   // extração via React Fiber para manter o contrato do WA_MESSAGE estável.
 
-  function serializeWppModelMessage(msg, source = "wpp-ev") {
+  function mimeFromMessage(msg, fallback = "") {
+    return normalizeText(firstPath(msg, [
+      ["mimetype"],
+      ["mimeType"],
+      ["mediaData", "mimetype"],
+      ["mediaData", "mimeType"],
+      ["mediaData", "mediaStage", "mimetype"],
+    ]) || fallback);
+  }
+
+  function fileNameFromMessage(msg) {
+    return normalizeText(firstPath(msg, [
+      ["filename"],
+      ["fileName"],
+      ["mediaData", "filename"],
+      ["mediaData", "fileName"],
+      ["documentTitle"],
+    ]) || "");
+  }
+
+  function extensionFromMime(mime, type) {
+    const normalized = String(mime || "").toLowerCase().split(";")[0];
+    const byMime = {
+      "audio/aac": "aac",
+      "audio/amr": "amr",
+      "audio/mpeg": "mp3",
+      "audio/mp4": "m4a",
+      "audio/ogg": "ogg",
+      "audio/opus": "opus",
+      "audio/wav": "wav",
+      "audio/webm": "webm",
+      "image/gif": "gif",
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+      "video/mp4": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+      "application/pdf": "pdf",
+    };
+    if (byMime[normalized]) return byMime[normalized];
+    if (normalized.includes("/")) return normalized.split("/").pop().replace(/[^a-z0-9]/g, "") || type || "bin";
+    if (type === "sticker") return "webp";
+    if (type === "audio") return "ogg";
+    return "bin";
+  }
+
+  function mediaKindFromMime(mime, fallbackType) {
+    const normalized = String(mime || "").toLowerCase();
+    if (fallbackType === "sticker") return "sticker";
+    if (normalized.startsWith("audio/")) return "audio";
+    if (normalized.startsWith("image/")) return fallbackType === "sticker" ? "sticker" : "image";
+    if (normalized.startsWith("video/")) return "video";
+    if (normalized.startsWith("application/")) return "document";
+    return MEDIA_MESSAGE_TYPES.has(fallbackType) ? fallbackType : "media";
+  }
+
+  function estimateDataUrlBytes(dataUrl) {
+    const comma = String(dataUrl || "").indexOf(",");
+    if (comma < 0) return 0;
+    const base64 = dataUrl.slice(comma + 1);
+    return Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0));
+  }
+
+  function dataUrlMime(dataUrl, fallback = "") {
+    const match = String(dataUrl || "").match(/^data:([^;,]+)[;,]/i);
+    return match?.[1] || fallback;
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Falha lendo media do WhatsApp."));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function normalizeDownloadedMedia(downloaded, msg, type) {
+    if (!downloaded) return null;
+
+    const fallbackMime = mimeFromMessage(msg);
+    const fallbackName = fileNameFromMessage(msg);
+
+    if (typeof downloaded === "string") {
+      const dataUrl = downloaded.startsWith("data:")
+        ? downloaded
+        : `data:${fallbackMime || "application/octet-stream"};base64,${downloaded}`;
+      const size = estimateDataUrlBytes(dataUrl);
+      const mime = dataUrlMime(dataUrl, fallbackMime || "application/octet-stream");
+      if (size > MAX_INLINE_MEDIA_BYTES) {
+        return { error: "media_too_large", mime, size };
+      }
+      const kind = mediaKindFromMime(mime, type);
+      return {
+        data_url: dataUrl,
+        mime,
+        size,
+        type: kind,
+        file_name: fallbackName || null,
+        extension: extensionFromMime(mime, kind),
+      };
+    }
+
+    if (downloaded instanceof Blob) {
+      const mime = downloaded.type || fallbackMime || "application/octet-stream";
+      const size = downloaded.size || 0;
+      if (size > MAX_INLINE_MEDIA_BYTES) {
+        return { error: "media_too_large", mime, size };
+      }
+      const kind = mediaKindFromMime(mime, type);
+      return {
+        data_url: await blobToDataUrl(downloaded),
+        mime,
+        size,
+        type: kind,
+        file_name: downloaded.name || fallbackName || null,
+        extension: extensionFromMime(mime, kind),
+      };
+    }
+
+    if (typeof downloaded === "object") {
+      const blob = downloaded.blob || downloaded.file;
+      if (blob instanceof Blob) return normalizeDownloadedMedia(blob, msg, type);
+
+      const rawData = downloaded.data || downloaded.base64 || downloaded.body;
+      const mime = downloaded.mimetype || downloaded.mimeType || fallbackMime || "application/octet-stream";
+      if (typeof rawData === "string" && rawData) {
+        const dataUrl = rawData.startsWith("data:") ? rawData : `data:${mime};base64,${rawData}`;
+        const size = Number(downloaded.size || downloaded.fileSize || estimateDataUrlBytes(dataUrl));
+        if (size > MAX_INLINE_MEDIA_BYTES) {
+          return { error: "media_too_large", mime, size };
+        }
+        const kind = mediaKindFromMime(mime, type);
+        return {
+          data_url: dataUrl,
+          mime,
+          size,
+          type: kind,
+          file_name: downloaded.filename || downloaded.fileName || fallbackName || null,
+          extension: extensionFromMime(mime, kind),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  async function downloadMessageMedia(msg, type) {
+    if (!MEDIA_MESSAGE_TYPES.has(type) && !msg?.mediaKey && !msg?.isMedia) return null;
+    const downloadMedia = window.WPP?.chat?.downloadMedia;
+    if (typeof downloadMedia !== "function") return null;
+
+    try {
+      return await normalizeDownloadedMedia(await downloadMedia(msg), msg, type);
+    } catch (error) {
+      return { error: error?.message || "download_failed" };
+    }
+  }
+
+  async function serializeWppModelMessage(msg, source = "wpp-ev") {
     if (!msg) return null;
 
     const id = stringifyId(msg.id) || stringifyId(msg._serialized);
@@ -542,11 +705,9 @@
 
     let type = rawType;
     if (["ptt", "audio"].includes(rawType)) type = "audio";
-    else if (
-      ["image", "video", "document", "sticker"].includes(rawType) ||
-      msg.mediaKey ||
-      msg.isMedia
-    ) {
+    else if (["image", "video", "document", "sticker"].includes(rawType)) {
+      type = rawType;
+    } else if (msg.mediaKey || msg.isMedia) {
       type = "media";
     } else if (rawType === "chat" || rawType === "text" || (!rawType && text)) {
       type = "text";
@@ -570,6 +731,9 @@
       stringifyId(firstPath(msg, [["author"], ["from"], ["sender", "id"], ["senderObj", "id"]])) ||
       null;
 
+    const media = await downloadMessageMedia(msg, type);
+    if (media?.type && type === "media") type = media.type;
+
     return {
       id,
       raw_id: id,
@@ -582,6 +746,13 @@
       rawTimestamp: null,
       timestamp,
       timestamp_wa: timestamp,
+      has_media: Boolean(media?.data_url || media?.error || msg.mediaKey || msg.isMedia),
+      media: media?.data_url ? media : null,
+      media_mime: media?.mime || mimeFromMessage(msg) || null,
+      media_size: media?.size || null,
+      media_filename: media?.file_name || fileNameFromMessage(msg) || null,
+      media_type: media?.type || type,
+      media_download_error: media?.error || null,
       source,
     };
   }
@@ -592,11 +763,11 @@
     window.__pipaWppListenerBound = true;
 
     window.WPP.ev.on("chat.new_message", (msg) => {
-      try {
-        emitMessage(serializeWppModelMessage(msg, "wpp-ev"));
-      } catch (err) {
-        console.warn("[Pipa] chat.new_message handler failed:", err);
-      }
+      serializeWppModelMessage(msg, "wpp-ev")
+        .then(emitMessage)
+        .catch((err) => {
+          console.warn("[Pipa] chat.new_message handler failed:", err);
+        });
     });
   }
 
@@ -692,7 +863,8 @@
   async function getChatMessages(chatId, count = 200) {
     await whenReady();
     const msgs = await window.WPP.chat.getMessages(chatId, { count });
-    return msgs.map(serializeMessage);
+    const serialized = await Promise.all((msgs || []).map(serializeMessage));
+    return serialized.filter(Boolean);
   }
 
   async function sendTextMessage(payload = {}) {
@@ -713,7 +885,7 @@
     }
 
     const sent = await sendText(chatId, text, payload.options || {});
-    return sent ? serializeMessage(sent) : {
+    return sent ? await serializeMessage(sent) : {
       wa_msg_id: null,
       raw_id: null,
       chat_id: chatId,
@@ -729,23 +901,34 @@
     };
   }
 
-  function serializeMessage(m) {
+  async function serializeMessage(m) {
     const id = m.id?._serialized || String(m.id);
     const ts = m.t ? m.t * 1000 : Date.now();
     const body = m.body || m.caption || "";
     const timestamp = new Date(ts).toISOString();
+    const rawType = String(m.type || "chat").toLowerCase();
+    const type = rawType === "ptt" || rawType === "voice" ? "audio" : rawType;
+    const media = await downloadMessageMedia(m, type);
+    const mediaType = media?.type || type;
+
     return {
       wa_msg_id: id,
       raw_id: id,
       chat_id: m.from?._serialized || m.to?._serialized || null,
       from_me: !!m.fromMe,
       author: m.author?._serialized || m.from?._serialized || null,
-      type: m.type || "chat",
+      type: mediaType,
       body,
       content_md: body,
       timestamp,
       timestamp_wa: timestamp,
-      has_media: !!m.mediaKey || !!m.isMedia,
+      has_media: Boolean(media?.data_url || media?.error || m.mediaKey || m.isMedia),
+      media: media?.data_url ? media : null,
+      media_mime: media?.mime || mimeFromMessage(m) || null,
+      media_size: media?.size || null,
+      media_filename: media?.file_name || fileNameFromMessage(m) || null,
+      media_type: mediaType,
+      media_download_error: media?.error || null,
       quoted_msg_id: m.quotedStanzaID || null,
     };
   }
@@ -778,8 +961,8 @@
           await whenReady();
           const count = typeof payload?.count === "number" ? payload.count : 500;
           const msgs = await window.WPP.chat.getMessages(payload.chat_id, { count });
-          const serialized = (msgs || [])
-            .map((m) => serializeWppModelMessage(m, "wpp-backfill"))
+          const serialized = (await Promise.all((msgs || [])
+            .map((m) => serializeWppModelMessage(m, "wpp-backfill"))))
             .filter(Boolean);
           response = { ok: true, data: serialized };
           break;

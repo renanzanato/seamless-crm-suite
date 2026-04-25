@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Triangle,
-  CalendarDays,
   Plug,
   Users,
   Building2,
@@ -36,10 +35,9 @@ const navSections: NavSection[] = [
   {
     label: '',
     items: [
-      { title: "Comando do Dia", url: "/hoje",       icon: Zap },
-      { title: "WhatsApp",       url: "/mensagens",  icon: MessageSquare },
-      { title: "Calendário",     url: "/calendario", icon: CalendarDays },
-      { title: "Painel",         url: "/dashboard",  icon: LayoutDashboard },
+      { title: "Comando do Dia", url: "/hoje",      icon: Zap },
+      { title: "WhatsApp",       url: "/mensagens", icon: MessageSquare },
+      { title: "Painel",         url: "/dashboard", icon: LayoutDashboard },
     ],
   },
   {

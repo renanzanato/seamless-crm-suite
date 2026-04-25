@@ -65,6 +65,19 @@ END $$;
 ALTER TABLE public.whatsapp_messages
   ADD COLUMN IF NOT EXISTS message_type text;
 
+-- 4.05 Campos necessários pro frontend exibir a timeline (chat_key lookup)
+ALTER TABLE public.whatsapp_messages
+  ADD COLUMN IF NOT EXISTS chat_key text;
+ALTER TABLE public.whatsapp_messages
+  ADD COLUMN IF NOT EXISTS message_fingerprint text;
+ALTER TABLE public.whatsapp_messages
+  ADD COLUMN IF NOT EXISTS occurred_at timestamptz;
+
+ALTER TABLE public.whatsapp_conversations
+  ADD COLUMN IF NOT EXISTS chat_key text;
+
+CREATE INDEX IF NOT EXISTS idx_wa_msg_chat_key ON public.whatsapp_messages (chat_key);
+
 -- 4.0 Normaliza CHECK constraints em `direction`. Podem existir várias
 -- (auto-nomeadas _check, _check1, ...) com listas conflitantes se mais
 -- de um migration criou a coluna. Dropa todas e recria uma única
@@ -227,16 +240,17 @@ BEGIN
   IF v_conversation_id IS NULL THEN
     INSERT INTO public.whatsapp_conversations (
       contact_id, company_id, source, phone_number,
-      raw_text, wa_chat_id, created_by
+      raw_text, wa_chat_id, chat_key, created_by
     )
     VALUES (
       v_contact_id, v_company_id, 'extension', v_number_e164,
-      null, v_wa_chat_id, v_owner
+      null, v_wa_chat_id, v_wa_chat_id, v_owner
     )
     RETURNING id INTO v_conversation_id;
   ELSE
     UPDATE public.whatsapp_conversations AS wc
        SET wa_chat_id   = COALESCE(wc.wa_chat_id, v_wa_chat_id),
+           chat_key     = COALESCE(wc.chat_key, v_wa_chat_id),
            phone_number = COALESCE(wc.phone_number, v_number_e164),
            contact_id   = COALESCE(wc.contact_id, v_contact_id)
      WHERE wc.id = v_conversation_id;
@@ -263,17 +277,46 @@ BEGIN
 
     INSERT INTO public.whatsapp_messages (
       conversation_id, contact_id, company_id,
-      direction, body, wa_message_id, sent_at, message_type
+      direction, body, wa_message_id, sent_at, message_type,
+      chat_key, message_fingerprint, occurred_at
     )
     VALUES (
       v_conversation_id, v_contact_id, v_company_id,
-      v_direction, v_body, v_wa_msg_id, v_ts, v_type
+      v_direction, v_body, v_wa_msg_id, v_ts, v_type,
+      v_wa_chat_id, v_wa_msg_id, v_ts
     )
     ON CONFLICT (wa_message_id) DO NOTHING
     RETURNING id INTO v_ins;
 
     IF v_ins IS NOT NULL THEN
       v_inserted := v_inserted + 1;
+
+      -- Dual-write na timeline unificada (activities).
+      BEGIN
+        INSERT INTO public.activities (
+          kind, subject, body, direction, occurred_at, created_by,
+          contact_id, company_id, payload
+        )
+        VALUES (
+          'whatsapp',
+          NULL,
+          v_body,
+          CASE WHEN v_direction = 'outbound' THEN 'out' ELSE 'in' END,
+          v_ts,
+          v_owner,
+          v_contact_id,
+          v_company_id,
+          jsonb_build_object(
+            'wa_message_id', v_wa_msg_id,
+            'wa_chat_id',    v_wa_chat_id,
+            'message_type',  v_type
+          )
+        )
+        ON CONFLICT DO NOTHING;
+      EXCEPTION
+        WHEN undefined_table THEN NULL;
+        WHEN undefined_column THEN NULL;
+      END;
     ELSE
       v_skipped := v_skipped + 1;
     END IF;
