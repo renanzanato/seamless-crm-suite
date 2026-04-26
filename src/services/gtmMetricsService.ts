@@ -71,14 +71,13 @@ interface CompanyRow {
 }
 
 interface DealRow {
-  stage: string | null;
   stage_id?: string | null;
   stage_ref?: { name: string | null } | null;
   value: number | null;
   created_at: string | null;
 }
 
-interface InteractionRow {
+interface ActivitySummaryRow {
   company_id: string | null;
   interaction_type: string;
 }
@@ -134,7 +133,7 @@ async function countRows(table: string, build?: (query: ReturnType<typeof supaba
 }
 
 function normalizeDealStage(row: DealRow) {
-  return row.stage || row.stage_ref?.name || "Qualificação";
+  return row.stage_ref?.name || "Qualificação";
 }
 
 async function getDealsForMetrics(): Promise<DealRow[]> {
@@ -147,10 +146,7 @@ async function getDealsForMetrics(): Promise<DealRow[]> {
     return [];
   }
 
-  return ((stageId.data ?? []) as DealRow[]).map((row) => ({
-    ...row,
-    stage: normalizeDealStage(row),
-  }));
+  return (stageId.data ?? []) as DealRow[];
 }
 
 function activityKindToInteractionType(kind: string | null, payload: Record<string, unknown> | null) {
@@ -161,7 +157,7 @@ function activityKindToInteractionType(kind: string | null, payload: Record<stri
   return kind ?? "activity";
 }
 
-async function getInteractionRowsForMetrics(monthStartIso: string, nextMonthStartIso: string): Promise<InteractionRow[]> {
+async function getActivityRowsForMetrics(monthStartIso: string, nextMonthStartIso: string): Promise<ActivitySummaryRow[]> {
   const activities = await supabase
     .from("activities")
     .select("company_id, kind, payload")
@@ -247,7 +243,7 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   const [
     { data: companiesData },
     dealsRows,
-    interactionsMonthRows,
+    activityMonthRows,
     { data: phase0MonthData },
     { data: launchesData },
     contacts,
@@ -260,7 +256,7 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
       "id, status, buying_signal, cadence_status, last_interaction_at, vgv_projected, monthly_media_spend",
     ),
     getDealsForMetrics(),
-    getInteractionRowsForMetrics(monthStartIso, nextMonthStartIso),
+    getActivityRowsForMetrics(monthStartIso, nextMonthStartIso),
     supabase
       .from("phase0_results")
       .select("company_id")
@@ -300,7 +296,7 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   const proposalDeals = dealsRows.filter((row) => ["Proposta", "Negociação"].includes(normalizeDealStage(row))).length;
 
   const monthProspectedCompanies = new Set<string>();
-  interactionsMonthRows.forEach((row) => {
+  activityMonthRows.forEach((row) => {
     if (row.company_id) monthProspectedCompanies.add(row.company_id);
   });
   phase0MonthRows.forEach((row) => {
@@ -308,23 +304,23 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   });
   const prospectedAccountsMonth = monthProspectedCompanies.size;
 
-  const meetingsFromInteractions = interactionsMonthRows.filter((row) => row.interaction_type === "meeting").length;
+  const meetingsFromActivities = activityMonthRows.filter((row) => row.interaction_type === "meeting").length;
   const meetingsFromStatus = companiesRows.filter((row) =>
     row.status === "meeting_booked"
     && row.last_interaction_at
     && row.last_interaction_at >= monthStartIso
     && row.last_interaction_at < nextMonthStartIso,
   ).length;
-  const meetingsMonth = Math.max(meetingsFromInteractions, meetingsFromStatus);
+  const meetingsMonth = Math.max(meetingsFromActivities, meetingsFromStatus);
 
-  const proposalsFromInteractions = interactionsMonthRows.filter((row) => row.interaction_type === "proposal_sent").length;
+  const proposalsFromActivities = activityMonthRows.filter((row) => row.interaction_type === "proposal_sent").length;
   const proposalsFromDeals = dealsRows.filter((row) =>
     Boolean(row.created_at)
     && row.created_at! >= monthStartIso
     && row.created_at! < nextMonthStartIso
     && ["Proposta", "Negociação", "Fechado - Ganho"].includes(normalizeDealStage(row)),
   ).length;
-  const proposalsMonth = Math.max(proposalsFromInteractions, proposalsFromDeals);
+  const proposalsMonth = Math.max(proposalsFromActivities, proposalsFromDeals);
 
   const wonDealsMonth = dealsRows.filter((row) =>
     normalizeDealStage(row) === "Fechado - Ganho"

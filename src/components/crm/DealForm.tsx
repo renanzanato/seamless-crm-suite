@@ -25,7 +25,7 @@ interface Props {
 interface FormState {
   title: string;
   value: string;
-  stage: string;
+  stage_name: string;
   funnel_id: string;
   contact_id: string;
   company_id: string;
@@ -34,7 +34,7 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  title: '', value: '', stage: 'Qualificação', funnel_id: '',
+  title: '', value: '', stage_name: 'Qualificação', funnel_id: '',
   contact_id: '', company_id: '', owner_id: '', expected_close: '',
 };
 
@@ -74,7 +74,7 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
       setForm({
         title:          deal.title,
         value:          deal.value != null ? String(deal.value) : '',
-        stage:          deal.stage,
+        stage_name:     deal.stage_name,
         funnel_id:      deal.funnel_id ?? '',
         contact_id:     deal.contact_id ?? '',
         company_id:     deal.company_id ?? '',
@@ -94,7 +94,7 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
       const payload = {
         title:          form.title,
         value:          form.value ? parseFloat(form.value) : null,
-        stage:          form.stage,
+        stage_name:     form.stage_name,
         funnel_id:      form.funnel_id || null,
         contact_id:     form.contact_id || null,
         company_id:     form.company_id || null,
@@ -154,7 +154,7 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
             </div>
             <div className="space-y-1.5">
               <Label>Estágio</Label>
-              <Select value={form.stage} onValueChange={(v) => setForm((p) => ({ ...p, stage: v }))}>
+              <Select value={form.stage_name} onValueChange={(v) => setForm((p) => ({ ...p, stage_name: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DEAL_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

@@ -124,8 +124,8 @@ export interface Deal {
   title: string;
   value: number | null;
   stage_id: string | null;
-  /** Derived label from `stages.name`; do not persist to `deals.stage`. */
-  stage: string;
+  /** Derived label from `stages.name`; never persisted on `deals`. */
+  stage_name: string;
   funnel_id: string | null;
   contact_id: string | null;
   company_id: string | null;

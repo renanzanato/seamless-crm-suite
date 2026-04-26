@@ -29,13 +29,15 @@ const statusConfig: Record<EnrichmentStatus, { icon: React.ElementType; label: s
   error:      { icon: XCircle,      label: "Erro",         className: "bg-red-500/10 text-red-500 border-red-500/20" },
 };
 
-const stageLabels: Record<string, string> = {
-  lead:              "Lead",
-  mql:               "MQL",
-  sql:               "SQL",
-  visita_agendada:   "Visita Agendada",
-  visita_realizada:  "Visita Realizada",
-  comprou:           "Comprou",
+const lifecycleLabels: Record<string, string> = {
+  subscriber:    "Subscriber",
+  lead:          "Lead",
+  mql:           "MQL",
+  sql:           "SQL",
+  opportunity:   "Oportunidade",
+  customer:      "Cliente",
+  evangelist:    "Evangelista",
+  disqualified:  "Desqualificado",
 };
 
 export function EnrichmentTable({
@@ -102,7 +104,7 @@ export function EnrichmentTable({
           </div>
           <span>Lead</span>
           <span>Empresa / Cidade</span>
-          <span>Estágio</span>
+          <span>Lifecycle</span>
           <span>Status</span>
         </div>
 
@@ -155,7 +157,7 @@ export function EnrichmentTable({
                   </div>
 
                   <Badge className="text-[10px] w-fit">
-                    {stageLabels[contact.stage] ?? contact.stage}
+                    {lifecycleLabels[contact.lifecycle_stage] ?? contact.lifecycle_stage}
                   </Badge>
 
                   <div className="flex items-center gap-1.5">

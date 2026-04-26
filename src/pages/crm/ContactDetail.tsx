@@ -631,7 +631,7 @@ export default function ContactDetail() {
                   <div key={deal.id} className="rounded-lg border bg-background px-3 py-2">
                     <p className="line-clamp-2 text-sm font-medium">{deal.title}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>{deal.stage}</span>
+                      <span>{deal.stage_name}</span>
                       <span>{formatCurrency(deal.value)}</span>
                       {deal.expected_close && (
                         <span className="inline-flex items-center gap-1">

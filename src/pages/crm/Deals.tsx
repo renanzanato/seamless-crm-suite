@@ -61,7 +61,7 @@ export default function Deals() {
     queryKey: ['deals', search, stageFilter, ownerFilter],
     queryFn: () => getDeals({
       search,
-      stage:   stageFilter === '__all__' ? undefined : stageFilter,
+      stageName: stageFilter === '__all__' ? undefined : stageFilter,
       ownerId: ownerFilter === '__all__' ? undefined : ownerFilter,
     }),
   });
@@ -188,8 +188,8 @@ export default function Deals() {
                 <TableCell className="font-medium max-w-[180px] truncate">{d.title}</TableCell>
                 <TableCell className="font-mono text-sm">{formatCurrency(d.value)}</TableCell>
                 <TableCell>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STAGE_COLORS[d.stage] ?? 'bg-muted text-muted-foreground'}`}>
-                    {d.stage}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STAGE_COLORS[d.stage_name] ?? 'bg-muted text-muted-foreground'}`}>
+                    {d.stage_name}
                   </span>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{d.funnel?.name ?? '—'}</TableCell>

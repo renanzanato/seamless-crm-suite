@@ -104,9 +104,9 @@ export default function DealDetail() {
   });
 
   const stageOptions = useMemo(() => {
-    const current = deal?.stage ? [deal.stage] : [];
+    const current = deal?.stage_name ? [deal.stage_name] : [];
     return Array.from(new Set([...current, ...DEAL_STAGES]));
-  }, [deal?.stage]);
+  }, [deal?.stage_name]);
 
   const noteMutation = useMutation({
     mutationFn: (body: string) => createNoteActivity({
@@ -128,8 +128,8 @@ export default function DealDetail() {
   const moveStageMutation = useMutation({
     mutationFn: async (toStage: string) => {
       if (!deal) throw new Error('Deal não carregado.');
-      const fromStage = deal.stage;
-      const updated = await updateDeal(deal.id, { stage: toStage });
+      const fromStage = deal.stage_name;
+      const updated = await updateDeal(deal.id, { stage_name: toStage });
       await createStageChangeActivity({
         dealId: deal.id,
         contactId: deal.contact_id,
@@ -157,7 +157,7 @@ export default function DealDetail() {
     newValue: InlineEditValue,
   ) => {
     if (!deal) throw new Error('Deal nao carregado.');
-    if (field === 'stage') {
+    if (field === 'stage_name') {
       await moveStageMutation.mutateAsync(String(newValue));
       return;
     }
@@ -226,7 +226,7 @@ export default function DealDetail() {
   }
 
   function openMoveStage() {
-    setStageDraft(deal.stage);
+    setStageDraft(deal.stage_name);
     setStageOpen((open) => !open);
   }
 
@@ -247,7 +247,7 @@ export default function DealDetail() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-bold">{deal.title}</h1>
-              <Badge className={stageClass(deal.stage)}>{deal.stage}</Badge>
+              <Badge className={stageClass(deal.stage_name)}>{deal.stage_name}</Badge>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
@@ -350,7 +350,7 @@ export default function DealDetail() {
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Novo estágio</p>
-              <Select value={stageDraft || deal.stage} onValueChange={setStageDraft}>
+              <Select value={stageDraft || deal.stage_name} onValueChange={setStageDraft}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -368,8 +368,8 @@ export default function DealDetail() {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => moveStageMutation.mutate(stageDraft || deal.stage)}
-                disabled={moveStageMutation.isPending || (stageDraft || deal.stage) === deal.stage}
+                onClick={() => moveStageMutation.mutate(stageDraft || deal.stage_name)}
+                disabled={moveStageMutation.isPending || (stageDraft || deal.stage_name) === deal.stage_name}
               >
                 {moveStageMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mover'}
               </Button>
@@ -483,11 +483,11 @@ export default function DealDetail() {
               />
               <InlineEdit
                 label="Stage"
-                value={deal.stage}
+                value={deal.stage_name}
                 variant="select"
                 options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
                 nullable={false}
-                onSave={(value) => saveDealProperty('stage', deal.stage, value)}
+                onSave={(value) => saveDealProperty('stage_name', deal.stage_name, value)}
               />
               <InlineEdit
                 label="Valor"

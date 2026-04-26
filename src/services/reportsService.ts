@@ -36,7 +36,6 @@ export interface WeeklyActivity {
 }
 
 interface DealReportRow {
-  stage?: string | null;
   stage_ref?: { name: string | null } | null;
   value: number | null;
   owner_id?: string | null;
@@ -76,7 +75,7 @@ function getMonday(date: Date): Date {
 }
 
 function reportStage(row: DealReportRow) {
-  return row.stage || row.stage_ref?.name || 'Qualificação';
+  return row.stage_ref?.name || 'Qualificação';
 }
 
 async function getDealRowsForReports(params: {

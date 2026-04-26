@@ -86,7 +86,7 @@ export interface AccountSignal {
   metadata?: Record<string, unknown>;
 }
 
-export interface Interaction {
+export interface ActivityInteraction {
   id: string;
   company_id: string | null;
   contact_id: string | null;
@@ -169,13 +169,13 @@ export async function createTask(
 
 // ── Legacy interaction facade backed by activities ───────
 
-function activityKindToLegacyInteractionType(kind: string, payload: Record<string, unknown>) {
+function activityKindToActivityType(kind: string, payload: Record<string, unknown>) {
   if (typeof payload.interaction_type === "string") return payload.interaction_type;
   if (kind === "sequence_step") return "cadence_step";
   return kind;
 }
 
-function legacyInteractionTypeToActivityKind(type: string) {
+function activityTypeToActivityKind(type: string) {
   if (type.includes("whatsapp")) return "whatsapp";
   if (type.includes("email")) return "email";
   if (type.includes("call")) return "call";
@@ -184,22 +184,22 @@ function legacyInteractionTypeToActivityKind(type: string) {
   return "note";
 }
 
-function legacyDirectionToActivityDirection(direction: Interaction["direction"]) {
+function activityDirectionFromLegacyValue(direction: ActivityInteraction["direction"]) {
   if (direction === "inbound") return "in";
   if (direction === "outbound") return "out";
   return null;
 }
 
-function activityDirectionToLegacyDirection(direction: "in" | "out" | null) {
+function activityDirectionToDisplayValue(direction: "in" | "out" | null) {
   if (direction === "in") return "inbound";
   if (direction === "out") return "outbound";
   return null;
 }
 
-export async function getInteractions(
+export async function getCompanyActivities(
   companyId: string,
   limit = 50
-): Promise<Interaction[]> {
+): Promise<ActivityInteraction[]> {
   const { data, error } = await supabase
     .from("activities")
     .select("id, company_id, contact_id, deal_id, kind, subject, body, direction, occurred_at, created_by, payload, contact:contacts(name)")
@@ -219,11 +219,11 @@ export async function getInteractions(
       company_id: activity.company_id,
       contact_id: activity.contact_id,
       deal_id: activity.deal_id,
-      interaction_type: activityKindToLegacyInteractionType(activity.kind, payload),
+      interaction_type: activityKindToActivityType(activity.kind, payload),
       content: activity.body,
       summary: activity.subject,
       channel: String(payload.channel ?? activity.kind),
-      direction: activityDirectionToLegacyDirection(activity.direction),
+      direction: activityDirectionToDisplayValue(activity.direction),
       persona_type: (payload.persona_type as PersonaType | null) ?? null,
       cadence_day: typeof payload.cadence_day === "number" ? payload.cadence_day : null,
       created_by: activity.created_by,
@@ -234,11 +234,11 @@ export async function getInteractions(
   });
 }
 
-export async function logInteraction(
-  payload: Omit<Interaction, "id" | "created_at" | "contact">
-): Promise<Interaction> {
-  const kind = legacyInteractionTypeToActivityKind(payload.interaction_type);
-  const direction = legacyDirectionToActivityDirection(payload.direction);
+export async function logCompanyActivity(
+  payload: Omit<ActivityInteraction, "id" | "created_at" | "contact">
+): Promise<ActivityInteraction> {
+  const kind = activityTypeToActivityKind(payload.interaction_type);
+  const direction = activityDirectionFromLegacyValue(payload.direction);
   const { data, error } = await supabase
     .from("activities")
     .insert({
@@ -253,7 +253,7 @@ export async function logInteraction(
       deal_id: payload.deal_id,
       payload: {
         ...payload.metadata,
-        source: "legacy_log_interaction_facade",
+        source: "company_activity_facade",
         interaction_type: payload.interaction_type,
         channel: payload.channel,
         persona_type: payload.persona_type,
@@ -269,11 +269,11 @@ export async function logInteraction(
     company_id: data.company_id,
     contact_id: data.contact_id,
     deal_id: data.deal_id,
-    interaction_type: activityKindToLegacyInteractionType(data.kind, activityPayload),
+    interaction_type: activityKindToActivityType(data.kind, activityPayload),
     content: data.body,
     summary: data.subject,
     channel: String(activityPayload.channel ?? data.kind),
-    direction: activityDirectionToLegacyDirection(data.direction),
+    direction: activityDirectionToDisplayValue(data.direction),
     persona_type: (activityPayload.persona_type as PersonaType | null) ?? null,
     cadence_day: typeof activityPayload.cadence_day === "number" ? activityPayload.cadence_day : null,
     created_by: data.created_by,

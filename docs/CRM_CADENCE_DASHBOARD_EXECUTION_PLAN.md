@@ -28,8 +28,8 @@ O foco nao e IA ainda. O foco e rotina comercial funcionando.
 - Condicoes como "respondeu?", "abriu email?", "marcou reuniao?" ainda precisam virar regra real no worker.
 - Templates tem placeholder no texto, mas falta um renderizador unico e validado.
 - O worker e a UI ainda precisam falar o mesmo contrato sobre steps, edges, status e variaveis.
-- O Painel GTM esta sofisticado demais para a fase atual e ainda consulta partes legadas como `interactions` e `deals.stage`, enquanto o CRM esta migrando para `activities` e `stage_id`.
-- Ha uma alteracao local em `supabase/migrations/20260425_sequence_worker_support.sql` que torna o trigger defensivo para `deals.stage` ou `deals.stage_id`. Tratar como ajuste importante, mas revisar antes de commit.
+- O Painel GTM esta sofisticado demais para a fase atual; a camada de metricas ja deve ler `activities` e `deals.stage_id`, mantendo qualquer fallback legado apenas dentro de migrations defensivas.
+- `supabase/migrations/20260425_sequence_worker_support.sql` deve continuar defensivo para bancos antigos, mas runtime novo nao deve depender de `deals.stage`.
 - `supabase/whatsapp_wipe.sql` continua fora do fluxo normal e nao deve entrar em commit/deploy.
 
 ## Modelo De Produto
@@ -99,8 +99,8 @@ Escopo:
   - `CompanyDetail.tsx`
   - `DealDetail.tsx`
 - Corrigir consultas que ainda dependem de:
-  - `interactions` quando deveriam usar `activities`;
-  - `deals.stage` quando o schema usa `stage_id`;
+  - tabelas antigas de interacao quando deveriam usar `activities`;
+  - nome textual de stage em deal quando o schema usa `stage_id`;
   - arrays de contatos em payload quando o schema operacional usa `contact_id`;
   - tabelas opcionais sem fallback.
 - Adicionar estados de erro claros em telas criticas.

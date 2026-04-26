@@ -30,7 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { getCompanyCadenceDay } from '@/lib/cadence';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { startCadenceForContacts, getInteractions, type Interaction } from '@/services/abmService';
+import { startCadenceForContacts, getCompanyActivities, type ActivityInteraction } from '@/services/abmService';
 import { createNoteActivity, updateCompanyProperty } from '@/services/activitiesService';
 import { invokeAutomationWebhook } from '@/services/integrationService';
 import type { Company, Contact, CompanyLaunch, BuyingSignal, Deal } from '@/types';
@@ -86,8 +86,9 @@ interface CompanySignal {
   source: string;
 }
 
-type CompanyDeal = Pick<Deal, 'id' | 'title' | 'value' | 'stage' | 'expected_close' | 'contact_id'> & {
+type CompanyDeal = Pick<Deal, 'id' | 'title' | 'value' | 'stage_id' | 'stage_name' | 'expected_close' | 'contact_id'> & {
   contact?: Pick<Contact, 'id' | 'name'> | null;
+  stage_ref?: { name: string | null } | null;
 };
 
 function fmtVGV(v: number | null) {
@@ -377,13 +378,13 @@ function CadenceTimeline({ company, contacts }: { company: Company; contacts: Co
   );
 }
 
-// ── Activities Legacy Tab ────────────────────────────────
+// ── Activities Tab ───────────────────────────────────────
 
-function InteractionFeed({ companyId }: { companyId: string }) {
+function CompanyActivityFeed({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
-  const { data: interactions = [], isLoading } = useQuery({
-    queryKey: ['company-legacy-activities', companyId],
-    queryFn: () => getInteractions(companyId),
+  const { data: activities = [], isLoading } = useQuery({
+    queryKey: ['company-activities-feed', companyId],
+    queryFn: () => getCompanyActivities(companyId),
   });
 
   useEffect(() => {
@@ -398,7 +399,7 @@ function InteractionFeed({ companyId }: { companyId: string }) {
           filter: `company_id=eq.${companyId}`,
         },
         () => {
-          qc.invalidateQueries({ queryKey: ['company-legacy-activities', companyId] });
+          qc.invalidateQueries({ queryKey: ['company-activities-feed', companyId] });
         },
       )
       .subscribe();
@@ -425,19 +426,19 @@ function InteractionFeed({ companyId }: { companyId: string }) {
   };
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
-  if (interactions.length === 0) {
+  if (activities.length === 0) {
     return (
       <div className="text-center py-10 text-muted-foreground">
         <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-30" />
-        <p className="text-sm">Nenhuma interação registrada.</p>
-        <p className="text-xs mt-1">As interações aparecem conforme você executa a cadência.</p>
+        <p className="text-sm">Nenhuma atividade registrada.</p>
+        <p className="text-xs mt-1">As atividades aparecem conforme você executa a cadência.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      {interactions.map((i: Interaction) => {
+      {activities.map((i: ActivityInteraction) => {
         const Icon = typeIcon[i.interaction_type] || MessageSquare;
         return (
           <div key={i.id} className="flex items-start gap-3">
@@ -521,7 +522,7 @@ function SidebarDealRow({
     >
       <p className="line-clamp-2 text-sm font-medium">{deal.title}</p>
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span>{deal.stage}</span>
+        <span>{deal.stage_name}</span>
         <span>·</span>
         <span>{fmtVGV(deal.value)}</span>
       </div>
@@ -652,7 +653,7 @@ export default function CompanyDetail() {
       qc.invalidateQueries({ queryKey: ['company', id] }),
       qc.invalidateQueries({ queryKey: ['companies'] }),
       qc.invalidateQueries({ queryKey: ['account-signals', id] }),
-      qc.invalidateQueries({ queryKey: ['company-legacy-activities', id] }),
+      qc.invalidateQueries({ queryKey: ['company-activities-feed', id] }),
       qc.invalidateQueries({ queryKey: ['daily-tasks'] }),
       qc.invalidateQueries({ queryKey: ['abm-stats'] }),
       qc.invalidateQueries({ queryKey: ['account-stats'] }),
@@ -782,11 +783,14 @@ export default function CompanyDetail() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('deals')
-        .select('id, title, value, stage, expected_close, contact_id, contact:contacts(id, name)')
+        .select('id, title, value, stage_id, expected_close, contact_id, stage_ref:stages(name), contact:contacts(id, name)')
         .eq('company_id', id!)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as CompanyDeal[];
+      return ((data ?? []) as unknown as CompanyDeal[]).map((deal) => ({
+        ...deal,
+        stage_name: deal.stage_ref?.name ?? 'Qualificação',
+      }));
     },
     enabled: !!id,
   });
@@ -1093,7 +1097,7 @@ export default function CompanyDetail() {
                   <TabsTrigger value="signals">Sinais</TabsTrigger>
                   <TabsTrigger value="cadence">Cadência</TabsTrigger>
                   <TabsTrigger value="whatsapp">Conversa WhatsApp</TabsTrigger>
-                  <TabsTrigger value="interactions">Atividades</TabsTrigger>
+                  <TabsTrigger value="activities">Atividades</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-0">
@@ -1167,8 +1171,8 @@ export default function CompanyDetail() {
                   />
                 </TabsContent>
 
-                <TabsContent value="interactions" className="mt-0">
-                  <InteractionFeed companyId={company.id} />
+                <TabsContent value="activities" className="mt-0">
+                  <CompanyActivityFeed companyId={company.id} />
                 </TabsContent>
               </Tabs>
             </CardContent>

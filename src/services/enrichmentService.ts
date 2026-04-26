@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { ContactLifecycleStage } from '@/types';
 
 export type EnrichmentStatus = 'pending' | 'enriching' | 'done' | 'error';
 
@@ -11,7 +12,7 @@ export interface Contact {
   city: string | null;
   segment: string | null;
   responsible_id: string | null;
-  stage: string;
+  lifecycle_stage: ContactLifecycleStage;
   created_at: string;
   enrichment_status?: EnrichmentStatus;
 }
@@ -51,6 +52,7 @@ export async function fetchContacts(): Promise<Contact[]> {
 
   return (data as Contact[]).map((c) => ({
     ...c,
+    lifecycle_stage: c.lifecycle_stage ?? 'lead',
     enrichment_status: latestStatus[c.id] ?? 'pending',
   }));
 }
@@ -143,10 +145,10 @@ export async function bulkAssignResponsible(
   if (error) throw error;
 }
 
-export async function bulkMoveStage(contactIds: string[], stage: string): Promise<void> {
+export async function bulkMoveLifecycleStage(contactIds: string[], lifecycleStage: ContactLifecycleStage): Promise<void> {
   const { error } = await supabase
     .from('contacts')
-    .update({ stage, updated_at: new Date().toISOString() })
+    .update({ lifecycle_stage: lifecycleStage, updated_at: new Date().toISOString() })
     .in('id', contactIds);
 
   if (error) throw error;

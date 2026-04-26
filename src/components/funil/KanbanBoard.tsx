@@ -48,17 +48,17 @@ export function KanbanBoard({ deals, onDealsChange, onDealMoved }: KanbanBoardPr
       if (!draggedDeal) return;
 
       const toStage = over.id as string;
-      const fromStage = draggedDeal.stage;
+      const fromStage = draggedDeal.stage_name;
       if (fromStage === toStage) return;
 
       // Optimistic update
       const updated = deals.map((d) =>
-        d.id === draggedDeal.id ? { ...d, stage: toStage } : d,
+        d.id === draggedDeal.id ? { ...d, stage_name: toStage } : d,
       );
       onDealsChange(updated);
 
       try {
-        await updateDeal(draggedDeal.id, { stage: toStage });
+        await updateDeal(draggedDeal.id, { stage_name: toStage });
 
         // Create stage_change activity
         await createStageChangeActivity({
@@ -93,7 +93,7 @@ export function KanbanBoard({ deals, onDealsChange, onDealMoved }: KanbanBoardPr
             key={stage}
             stageName={stage}
             stageId={stage}
-            deals={deals.filter((d) => d.stage === stage)}
+            deals={deals.filter((d) => d.stage_name === stage)}
           />
         ))}
       </div>

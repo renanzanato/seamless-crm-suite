@@ -19,30 +19,34 @@ import {
   ChevronUp,
   ArrowUpDown,
 } from "lucide-react";
-import { fetchContacts, bulkAssignResponsible, bulkMoveStage, Contact } from "@/services/enrichmentService";
+import { fetchContacts, bulkAssignResponsible, bulkMoveLifecycleStage, Contact } from "@/services/enrichmentService";
 import { supabase } from "@/lib/supabase";
 import { Profile } from "@/types";
 
-const STAGES = [
-  { value: "all", label: "Todos os estágios" },
+const LIFECYCLE_STAGES = [
+  { value: "all", label: "Todos os lifecycles" },
+  { value: "subscriber", label: "Subscriber" },
   { value: "lead", label: "Lead" },
   { value: "mql", label: "MQL" },
   { value: "sql", label: "SQL" },
-  { value: "visita_agendada", label: "Visita Agendada" },
-  { value: "visita_realizada", label: "Visita Realizada" },
-  { value: "comprou", label: "Comprou" },
+  { value: "opportunity", label: "Oportunidade" },
+  { value: "customer", label: "Cliente" },
+  { value: "evangelist", label: "Evangelista" },
+  { value: "disqualified", label: "Desqualificado" },
 ];
 
-const STAGE_BADGE_COLORS: Record<string, string> = {
+const LIFECYCLE_BADGE_COLORS: Record<string, string> = {
+  subscriber:       "bg-muted text-muted-foreground border-border",
   lead:             "bg-muted text-muted-foreground border-border",
   mql:              "bg-primary/10 text-primary border-primary/20",
   sql:              "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  visita_agendada:  "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  visita_realizada: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  comprou:          "bg-green-500/10 text-green-500 border-green-500/20",
+  opportunity:      "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  customer:         "bg-green-500/10 text-green-500 border-green-500/20",
+  evangelist:       "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  disqualified:     "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-type SortField = "name" | "company" | "city" | "stage" | "created_at";
+type SortField = "name" | "company" | "city" | "lifecycle_stage" | "created_at";
 type SortDir = "asc" | "desc";
 
 export default function DataManagement() {
@@ -52,7 +56,7 @@ export default function DataManagement() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
 
   const [search, setSearch] = useState("");
-  const [filterStage, setFilterStage] = useState("all");
+  const [filterLifecycleStage, setFilterLifecycleStage] = useState("all");
   const [filterCity, setFilterCity] = useState("");
   const [filterSegment, setFilterSegment] = useState("");
   const [filterResponsible, setFilterResponsible] = useState("all");
@@ -60,7 +64,7 @@ export default function DataManagement() {
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const [bulkStage, setBulkStage] = useState("");
+  const [bulkLifecycleStage, setBulkLifecycleStage] = useState("");
   const [bulkResponsible, setBulkResponsible] = useState("");
   const [applying, setApplying] = useState(false);
 
@@ -94,7 +98,7 @@ export default function DataManagement() {
           (c.company ?? "").toLowerCase().includes(q),
       );
     }
-    if (filterStage !== "all") list = list.filter((c) => c.stage === filterStage);
+    if (filterLifecycleStage !== "all") list = list.filter((c) => c.lifecycle_stage === filterLifecycleStage);
     if (filterCity) list = list.filter((c) => (c.city ?? "").toLowerCase().includes(filterCity.toLowerCase()));
     if (filterSegment) list = list.filter((c) => (c.segment ?? "").toLowerCase().includes(filterSegment.toLowerCase()));
     if (filterResponsible !== "all") list = list.filter((c) => c.responsible_id === filterResponsible);
@@ -106,7 +110,7 @@ export default function DataManagement() {
     });
 
     return list;
-  }, [contacts, search, filterStage, filterCity, filterSegment, filterResponsible, sortField, sortDir]);
+  }, [contacts, search, filterLifecycleStage, filterCity, filterSegment, filterResponsible, sortField, sortDir]);
 
   const allSelected = filtered.length > 0 && selected.length === filtered.length;
 
@@ -137,12 +141,12 @@ export default function DataManagement() {
       if (bulkResponsible && bulkResponsible !== "none") {
         await bulkAssignResponsible(selected, bulkResponsible);
       }
-      if (bulkStage && bulkStage !== "none") {
-        await bulkMoveStage(selected, bulkStage);
+      if (bulkLifecycleStage && bulkLifecycleStage !== "none") {
+        await bulkMoveLifecycleStage(selected, bulkLifecycleStage as Contact["lifecycle_stage"]);
       }
       await load();
       setSelected([]);
-      setBulkStage("");
+      setBulkLifecycleStage("");
       setBulkResponsible("");
     } finally {
       setApplying(false);
@@ -189,10 +193,10 @@ export default function DataManagement() {
             />
           </div>
 
-          <Select value={filterStage} onValueChange={setFilterStage}>
-            <SelectTrigger><SelectValue placeholder="Estágio" /></SelectTrigger>
+          <Select value={filterLifecycleStage} onValueChange={setFilterLifecycleStage}>
+            <SelectTrigger><SelectValue placeholder="Lifecycle" /></SelectTrigger>
             <SelectContent>
-              {STAGES.map((s) => (
+              {LIFECYCLE_STAGES.map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
@@ -234,13 +238,13 @@ export default function DataManagement() {
               </SelectContent>
             </Select>
 
-            <Select value={bulkStage} onValueChange={setBulkStage}>
+            <Select value={bulkLifecycleStage} onValueChange={setBulkLifecycleStage}>
               <SelectTrigger className="w-44 h-8 text-xs">
-                <SelectValue placeholder="Mover de estágio" />
+                <SelectValue placeholder="Mover lifecycle" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Manter atual</SelectItem>
-                {STAGES.slice(1).map((s) => (
+                {LIFECYCLE_STAGES.slice(1).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -248,7 +252,7 @@ export default function DataManagement() {
 
             <button
               onClick={applyBulk}
-              disabled={applying || (!bulkStage && !bulkResponsible)}
+              disabled={applying || (!bulkLifecycleStage && !bulkResponsible)}
               className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40"
             >
               {applying ? "Aplicando..." : "Aplicar"}
@@ -289,8 +293,8 @@ export default function DataManagement() {
           <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => toggleSort("city")}>
             Cidade <SortIcon field="city" />
           </button>
-          <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => toggleSort("stage")}>
-            Estágio <SortIcon field="stage" />
+          <button className="flex items-center gap-1 text-left hover:text-foreground transition-colors" onClick={() => toggleSort("lifecycle_stage")}>
+            Lifecycle <SortIcon field="lifecycle_stage" />
           </button>
           <span>Responsável</span>
         </div>
@@ -329,8 +333,8 @@ export default function DataManagement() {
               </div>
               <span className="text-sm text-foreground truncate">{c.company ?? "—"}</span>
               <span className="text-sm text-foreground truncate">{c.city ?? "—"}</span>
-              <Badge className={`text-[10px] w-fit ${STAGE_BADGE_COLORS[c.stage] ?? ""}`}>
-                {STAGES.find((s) => s.value === c.stage)?.label ?? c.stage}
+              <Badge className={`text-[10px] w-fit ${LIFECYCLE_BADGE_COLORS[c.lifecycle_stage] ?? ""}`}>
+                {LIFECYCLE_STAGES.find((s) => s.value === c.lifecycle_stage)?.label ?? c.lifecycle_stage}
               </Badge>
               <span className="text-xs text-muted-foreground truncate">
                 {responsibleName(c.responsible_id)}

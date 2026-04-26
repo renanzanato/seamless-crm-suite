@@ -304,7 +304,7 @@ Entregue. Ver [PHASE_1E_DONE.md](./PHASE_1E_DONE.md).
 - Header com stage, valor, data prevista, empresa e contato.
 - Timeline central filtrada por `deal_id`.
 - Add note cria `activities.kind='note'` com `deal_id`.
-- Move stage atualiza `deals.stage` e cria `activities.kind='stage_change'`.
+- Move stage atualiza `deals.stage_id` e cria `activities.kind='stage_change'`.
 - `PipelinePage` abre o detalhe ao clicar no título do deal.
 
 ### ⚠️ Phase 1E (especificação original — já entregue, mantida aqui só como histórico)

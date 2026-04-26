@@ -453,7 +453,7 @@ export default function Companies() {
           createDeal({
             title: `Negociação - ${company.name}`,
             value: company.vgv_projected ?? null,
-            stage: dealStage,
+            stage_name: dealStage,
             funnel_id: dealFunnelId || null,
             contact_id: null,
             company_id: company.id,

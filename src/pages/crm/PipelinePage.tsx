@@ -113,7 +113,7 @@ export default function PipelinePage() {
     queryFn: () =>
       getCrmDeals({
         search,
-        stage: stageFilter === "__all__" ? undefined : stageFilter,
+        stageName: stageFilter === "__all__" ? undefined : stageFilter,
         ownerId: ownerFilter === "__all__" ? undefined : ownerFilter,
       }),
   });
@@ -266,7 +266,7 @@ export default function PipelinePage() {
                       </button>
                     </TableCell>
                     <TableCell className="font-mono text-sm">{formatCurrency(deal.value)}</TableCell>
-                    <TableCell><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[deal.stage] ?? "bg-muted text-muted-foreground"}`}>{deal.stage}</span></TableCell>
+                    <TableCell><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[deal.stage_name] ?? "bg-muted text-muted-foreground"}`}>{deal.stage_name}</span></TableCell>
                     <TableCell className="text-muted-foreground">{deal.funnel?.name ?? "—"}</TableCell>
                     <TableCell>{deal.contact?.name ?? "—"}</TableCell>
                     <TableCell>{deal.company ? <button type="button" className="text-left font-medium hover:text-primary hover:underline" onClick={() => navigate(`/crm/empresas/${deal.company!.id}`)}>{deal.company.name}</button> : "—"}</TableCell>

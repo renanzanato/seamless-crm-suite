@@ -17,7 +17,6 @@ export interface SearchResult {
 interface DealSearchRow {
   id: string;
   title: string;
-  stage?: string | null;
   value: number | null;
   stage_ref?: { name: string | null } | null;
 }
@@ -88,7 +87,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
       id: d.id,
       type: 'deal',
       title: d.title,
-      subtitle: [d.stage ?? d.stage_ref?.name, d.value ? `R$ ${d.value.toLocaleString('pt-BR')}` : null]
+      subtitle: [d.stage_ref?.name, d.value ? `R$ ${d.value.toLocaleString('pt-BR')}` : null]
         .filter(Boolean)
         .join(' · '),
       link: `/crm/negocios/${d.id}`,

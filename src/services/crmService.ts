@@ -13,12 +13,12 @@ function throwOnError<T>({ data, error }: { data: T | null; error: unknown }): T
 }
 
 type DealStageRef = { id: string; name: string; color?: string | null; order?: number | null } | null;
-type DealRow = Omit<Deal, 'stage' | 'stage_ref'> & { stage_ref?: DealStageRef };
+type DealRow = Omit<Deal, 'stage_name' | 'stage_ref'> & { stage_ref?: DealStageRef };
 
 function normalizeDeal(row: DealRow): Deal {
   return {
     ...row,
-    stage: row.stage_ref?.name ?? 'Qualificação',
+    stage_name: row.stage_ref?.name ?? 'Qualificação',
     stage_ref: row.stage_ref ?? null,
   };
 }
@@ -55,14 +55,20 @@ async function prepareDealPayload(
   payload: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const next = { ...payload };
-  const stageName = typeof next.stage === 'string' ? next.stage : null;
+  const legacyPayload = next as Record<string, unknown>;
+  const stageName = typeof next.stage_name === 'string'
+    ? next.stage_name
+    : typeof legacyPayload['stage'] === 'string'
+      ? legacyPayload['stage']
+      : null;
   if (stageName && !next.stage_id) {
     next.stage_id = await resolveStageIdByName(
       stageName,
       typeof next.funnel_id === 'string' ? next.funnel_id : null,
     );
   }
-  delete next.stage;
+  delete legacyPayload['stage'];
+  delete next.stage_name;
   delete next.stage_ref;
   delete next.funnel;
   delete next.contact;
@@ -236,7 +242,7 @@ export interface ContactCompanySummary {
 export interface ContactDealSummary {
   id: string;
   title: string;
-  stage: string;
+  stage_name: string;
   stage_id: string | null;
   value: number | null;
   expected_close: string | null;
@@ -301,7 +307,7 @@ export async function getContactRelations(
     company: (companyRes.data as ContactCompanySummary | null) ?? null,
     deals: ((dealsRes.data ?? []) as Array<ContactDealSummary & { stage_ref?: { name: string | null } | null }>).map((deal) => ({
       ...deal,
-      stage: deal.stage_ref?.name ?? 'Qualificação',
+      stage_name: deal.stage_ref?.name ?? 'Qualificação',
     })),
     siblings: (siblingsRes.data ?? []) as ContactSiblingSummary[],
   };
@@ -369,12 +375,12 @@ export async function importContacts(
 }
 
 // ── Deals ─────────────────────────────────────────────────────────────────────
-export async function getDeals(params: { search?: string; stage?: string; ownerId?: string } = {}): Promise<Deal[]> {
+export async function getDeals(params: { search?: string; stageName?: string; ownerId?: string } = {}): Promise<Deal[]> {
   let q = supabase.from('deals').select(DEAL_SELECT).order('created_at', { ascending: false });
 
   if (params.search) q = q.ilike('title', `%${params.search}%`);
-  if (params.stage) {
-    const stageId = await resolveStageIdByName(params.stage);
+  if (params.stageName) {
+    const stageId = await resolveStageIdByName(params.stageName);
     if (!stageId) return [];
     q = q.eq('stage_id', stageId);
   }

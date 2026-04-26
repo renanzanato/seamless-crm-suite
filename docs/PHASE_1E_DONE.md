@@ -19,7 +19,7 @@ Criada a página de detalhe de negócio em `/crm/negocios/:id`, seguindo o mesmo
 ### 2. Quick actions
 
 - `Add note`: cria `activity kind='note'` com `deal_id`, `company_id` e `contact_id` quando disponíveis.
-- `Move stage`: atualiza `deals.stage` e cria `activity kind='stage_change'` com `from_stage` e `to_stage` no payload.
+- `Move stage`: atualiza `deals.stage_id` e cria `activity kind='stage_change'` com `from_stage` e `to_stage` no payload.
 - `WhatsApp`: abre `wa.me` usando o WhatsApp/telefone do contato vinculado.
 - `Editar`: reaproveita `DealForm`.
 
@@ -54,7 +54,7 @@ Criada a página de detalhe de negócio em `/crm/negocios/:id`, seguindo o mesmo
 3. Confirmar `/crm/negocios/<deal-id>` com header + três colunas.
 4. Adicionar nota e confirmar activity com `deal_id`.
 5. Mover stage e confirmar:
-   - `deals.stage` atualizado.
+   - `deals.stage_id` atualizado.
    - `activities.kind = 'stage_change'` criado.
    - Timeline atualiza após a ação.
 
@@ -80,5 +80,5 @@ limit 10;
 
 ## Limites conhecidos
 
-- O move stage usa o campo textual `deals.stage`, alinhado ao `DealForm` atual. O kanban novo também usa `stage_id`; unificar isso fica para a Phase 3 do pipeline.
+- O move stage usa `deals.stage_id`; o label exibido vem de `stages.name`.
 - Propriedades seguem read-only. Inline edit fica para a Phase 1G.
