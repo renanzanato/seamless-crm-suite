@@ -178,7 +178,7 @@ export interface FunnelStage {
   position: number;
 }
 
-export type SequenceChannel = 'whatsapp' | 'email';
+export type SequenceChannel = 'whatsapp' | 'email' | 'both';
 
 export interface SequenceStep {
   id: string;
@@ -192,11 +192,21 @@ export interface SequenceStep {
 export interface Sequence {
   id: string;
   name: string;
-  funnel_id: string;
-  stage_id: string;
+  funnel_id: string | null;
+  stage_id: string | null;
+  channel?: SequenceChannel | null;
+  stop_on_reply?: boolean | null;
+  max_enrollments_per_day?: number | null;
   active: boolean;
   created_at: string;
   funnel?: Pick<Funnel, 'id' | 'name'>;
   stage?: Pick<FunnelStage, 'id' | 'name'>;
   steps?: SequenceStep[];
+  steps_v2?: Array<{
+    id: string;
+    sequence_id: string;
+    position: number;
+    step_type: string;
+    config: Record<string, unknown>;
+  }>;
 }

@@ -132,7 +132,10 @@ export async function getDailyTasks(date?: string): Promise<DailyTask[]> {
     .order("urgency", { ascending: true })
     .order("due_date", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    console.warn("[abmService] daily_tasks unavailable:", error.message);
+    return [];
+  }
   return data || [];
 }
 
@@ -170,14 +173,47 @@ export async function getInteractions(
   companyId: string,
   limit = 50
 ): Promise<Interaction[]> {
-  const { data, error } = await supabase
+  const legacy = await supabase
     .from("interactions")
     .select(`*, contact:contacts(name)`)
     .eq("company_id", companyId)
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) throw error;
-  return data || [];
+  if (!legacy.error) return legacy.data || [];
+
+  console.warn("[abmService] interactions unavailable, falling back to activities:", legacy.error.message);
+  const { data, error } = await supabase
+    .from("activities")
+    .select("id, company_id, contact_id, deal_id, kind, subject, body, direction, occurred_at, created_by, payload, contact:contacts(name)")
+    .eq("company_id", companyId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.warn("[abmService] activities fallback unavailable:", error.message);
+    return [];
+  }
+
+  return (data ?? []).map((activity) => {
+    const payload = (activity.payload ?? {}) as Record<string, unknown>;
+    return {
+      id: activity.id,
+      company_id: activity.company_id,
+      contact_id: activity.contact_id,
+      deal_id: activity.deal_id,
+      interaction_type: String(payload.interaction_type ?? activity.kind),
+      content: activity.body,
+      summary: activity.subject,
+      channel: String(payload.channel ?? activity.kind),
+      direction: activity.direction === "in" ? "inbound" : activity.direction === "out" ? "outbound" : null,
+      persona_type: (payload.persona_type as PersonaType | null) ?? null,
+      cadence_day: typeof payload.cadence_day === "number" ? payload.cadence_day : null,
+      created_by: activity.created_by,
+      created_at: activity.occurred_at,
+      metadata: payload,
+      contact: activity.contact as { name: string } | null,
+    };
+  });
 }
 
 export async function logInteraction(
@@ -398,7 +434,10 @@ export async function getCadenceTracks(): Promise<CadenceTrack[]> {
       contact:contacts(id, name, role, whatsapp, email)
     `)
     .order("enrolled_at", { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.warn("[abmService] cadence_tracks unavailable:", error.message);
+    return [];
+  }
   return (data ?? []) as CadenceTrack[];
 }
 
@@ -418,11 +457,19 @@ export async function setCadenceTrackStatus(
 }
 
 export async function runSequenceWorker(): Promise<unknown> {
-  const { data, error } = await supabase.functions.invoke("sequence-worker", {
+  const v2 = await supabase.functions.invoke("sequence-worker-v2", {
     body: { force: true },
   });
-  if (error) throw error;
-  return data;
+  if (!v2.error) return v2.data;
+
+  console.warn("[abmService] sequence-worker-v2 failed, trying legacy worker:", v2.error.message);
+  const legacy = await supabase.functions.invoke("sequence-worker", {
+    body: { force: true },
+  });
+  if (legacy.error) {
+    throw new Error(`Worker v2: ${v2.error.message}; worker legado: ${legacy.error.message}`);
+  }
+  return legacy.data;
 }
 
 export async function startCadenceForContacts(payload: StartAccountCadencePayload): Promise<number> {
@@ -545,9 +592,9 @@ export async function getABMStats() {
       .eq("cadence_status", "active"),
   ]);
   return {
-    pendingToday: pending.count || 0,
-    doneToday: done.count || 0,
-    hotAccounts: hot.count || 0,
-    activeCadences: active.count || 0,
+    pendingToday: pending.error ? 0 : pending.count || 0,
+    doneToday: done.error ? 0 : done.count || 0,
+    hotAccounts: hot.error ? 0 : hot.count || 0,
+    activeCadences: active.error ? 0 : active.count || 0,
   };
 }

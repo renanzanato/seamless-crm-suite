@@ -14,6 +14,38 @@ export interface SearchResult {
   link: string;
 }
 
+interface DealSearchRow {
+  id: string;
+  title: string;
+  stage?: string | null;
+  value: number | null;
+  stage_ref?: { name: string | null } | null;
+}
+
+async function searchDeals(term: string): Promise<DealSearchRow[]> {
+  const textStage = await supabase
+    .from('deals')
+    .select('id, title, stage, value')
+    .or(`title.ilike.${term}`)
+    .limit(8);
+
+  if (!textStage.error) return (textStage.data ?? []) as DealSearchRow[];
+
+  console.warn('[searchService] deals.stage unavailable, falling back to stage_id:', textStage.error.message);
+  const stageId = await supabase
+    .from('deals')
+    .select('id, title, value, stage_ref:stages(name)')
+    .or(`title.ilike.${term}`)
+    .limit(8);
+
+  if (stageId.error) {
+    console.warn('[searchService] deal search unavailable:', stageId.error.message);
+    return [];
+  }
+
+  return (stageId.data ?? []) as DealSearchRow[];
+}
+
 // ---------------------------------------------------------------------------
 // Multi-entity search
 // ---------------------------------------------------------------------------
@@ -35,11 +67,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
       .select('id, name, city, segment')
       .or(`name.ilike.${term},city.ilike.${term}`)
       .limit(8),
-    supabase
-      .from('deals')
-      .select('id, title, stage, value')
-      .or(`title.ilike.${term}`)
-      .limit(8),
+    searchDeals(term),
   ]);
 
   const results: SearchResult[] = [];
@@ -64,12 +92,12 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
     }),
   );
 
-  (deals.data ?? []).forEach((d) =>
+  deals.forEach((d) =>
     results.push({
       id: d.id,
       type: 'deal',
       title: d.title,
-      subtitle: [d.stage, d.value ? `R$ ${d.value.toLocaleString('pt-BR')}` : null]
+      subtitle: [d.stage ?? d.stage_ref?.name, d.value ? `R$ ${d.value.toLocaleString('pt-BR')}` : null]
         .filter(Boolean)
         .join(' · '),
       link: `/crm/negocios/${d.id}`,

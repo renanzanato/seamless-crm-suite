@@ -239,7 +239,7 @@ export default function SequenceBuilderV2() {
     onSuccess: (seq) => {
       toast.success('Sequência salva!');
       qc.invalidateQueries({ queryKey: ['sequences'] });
-      if (isNew) navigate(`/sequencias/${seq.id}`, { replace: true });
+      if (isNew) navigate(`/sequencias-v2/${seq.id}`, { replace: true });
     },
     onError: (err) => {
       toast.error('Erro ao salvar: ' + (err as Error).message);

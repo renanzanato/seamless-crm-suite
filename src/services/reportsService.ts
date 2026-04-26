@@ -35,6 +35,14 @@ export interface WeeklyActivity {
   meeting: number;
 }
 
+interface DealReportRow {
+  stage?: string | null;
+  stage_ref?: { name: string | null } | null;
+  value: number | null;
+  owner_id?: string | null;
+  owner?: { id: string; name: string | null } | null;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -67,6 +75,42 @@ function getMonday(date: Date): Date {
   return d;
 }
 
+function reportStage(row: DealReportRow) {
+  return row.stage || row.stage_ref?.name || 'Qualificação';
+}
+
+async function getDealRowsForReports(params: {
+  periodDays?: number;
+  ownerId?: string;
+  includeOwner?: boolean;
+} = {}): Promise<DealReportRow[]> {
+  const applyFilters = (query: ReturnType<typeof supabase.from>) => {
+    let next = query;
+    if (params.periodDays && params.periodDays > 0) next = next.gte('created_at', daysAgo(params.periodDays));
+    if (params.ownerId && params.ownerId !== '__all__') next = next.eq('owner_id', params.ownerId);
+    return next;
+  };
+
+  const ownerSelect = params.includeOwner ? ', owner_id, owner:profiles!deals_owner_id_fkey(id, name)' : '';
+  const textStage = await applyFilters(
+    supabase.from('deals').select(`stage, value${ownerSelect}`),
+  );
+
+  if (!textStage.error) return (textStage.data ?? []) as DealReportRow[];
+
+  console.warn('[reportsService] deals.stage unavailable, falling back to stage_id:', textStage.error.message);
+  const stageId = await applyFilters(
+    supabase.from('deals').select(`value, stage_ref:stages(name)${ownerSelect}`),
+  );
+
+  if (stageId.error) {
+    console.warn('[reportsService] deals report unavailable:', stageId.error.message);
+    return [];
+  }
+
+  return (stageId.data ?? []) as DealReportRow[];
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -76,25 +120,13 @@ export async function getFunnelData(
   periodDays: number,
   ownerId?: string,
 ): Promise<FunnelData[]> {
-  let query = supabase
-    .from('deals')
-    .select('stage, value');
-
-  if (periodDays > 0) {
-    query = query.gte('created_at', daysAgo(periodDays));
-  }
-  if (ownerId && ownerId !== '__all__') {
-    query = query.eq('owner_id', ownerId);
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
+  const data = await getDealRowsForReports({ periodDays, ownerId });
 
   const byStage: Record<string, { count: number; value: number }> = {};
   DEAL_STAGES.forEach((s) => { byStage[s] = { count: 0, value: 0 }; });
 
-  (data ?? []).forEach((d) => {
-    const s = d.stage ?? 'Qualificação';
+  data.forEach((d) => {
+    const s = reportStage(d);
     if (!byStage[s]) byStage[s] = { count: 0, value: 0 };
     byStage[s].count++;
     byStage[s].value += d.value ?? 0;
@@ -181,20 +213,11 @@ export async function getVelocityData(): Promise<VelocityData[]> {
 
 /** 3. Performance por owner */
 export async function getOwnerPerformance(periodDays: number): Promise<OwnerPerformance[]> {
-  let query = supabase
-    .from('deals')
-    .select('stage, value, owner_id, owner:profiles!deals_owner_id_fkey(id, name)');
-
-  if (periodDays > 0) {
-    query = query.gte('created_at', daysAgo(periodDays));
-  }
-
-  const { data, error } = await query;
-  if (error) throw error;
+  const data = await getDealRowsForReports({ periodDays, includeOwner: true });
 
   const byOwner: Record<string, OwnerPerformance> = {};
 
-  (data ?? []).forEach((d) => {
+  data.forEach((d) => {
     const ownerId = d.owner_id;
     const ownerObj = d.owner as { id: string; name: string } | null;
     if (!ownerId) return;
@@ -207,10 +230,11 @@ export async function getOwnerPerformance(periodDays: number): Promise<OwnerPerf
         dealsLost: 0,
       };
     }
-    if (d.stage === 'Fechado - Ganho') {
+    const stage = reportStage(d);
+    if (stage === 'Fechado - Ganho') {
       byOwner[ownerId].dealsWon++;
       byOwner[ownerId].totalValue += d.value ?? 0;
-    } else if (d.stage === 'Fechado - Perdido') {
+    } else if (stage === 'Fechado - Perdido') {
       byOwner[ownerId].dealsLost++;
     }
   });

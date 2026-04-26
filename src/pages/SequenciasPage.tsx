@@ -241,26 +241,44 @@ function TracksTable({
   );
 }
 
-function SequenceLibrary({ sequences, isLoading }: { sequences: Sequence[]; isLoading: boolean }) {
+function SequenceLibrary({
+  sequences,
+  isLoading,
+  onOpen,
+}: {
+  sequences: Sequence[];
+  isLoading: boolean;
+  onOpen: (sequenceId: string) => void;
+}) {
   if (isLoading) return <Skeleton className="h-28 rounded-xl" />;
 
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {sequences.map((sequence) => (
-        <Card key={sequence.id}>
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{sequence.name}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{sequence.steps?.length ?? 0} steps</p>
+      {sequences.map((sequence) => {
+        const stepCount = (sequence.steps_v2?.length ?? 0) || (sequence.steps?.length ?? 0);
+        return (
+          <Card
+            key={sequence.id}
+            className="cursor-pointer transition-colors hover:bg-muted/40"
+            onClick={() => onOpen(sequence.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{sequence.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {stepCount} passos
+                    {sequence.channel ? ` · ${sequence.channel}` : ""}
+                  </p>
+                </div>
+                <Badge variant={sequence.active ? "default" : "secondary"}>
+                  {sequence.active ? "Ativa" : "Inativa"}
+                </Badge>
               </div>
-              <Badge variant={sequence.active ? "default" : "secondary"}>
-                {sequence.active ? "Ativa" : "Inativa"}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
       {sequences.length === 0 && (
         <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground md:col-span-2 xl:col-span-3">
           <Workflow className="mx-auto mb-2 h-8 w-8 opacity-40" />
@@ -519,7 +537,11 @@ export default function SequenciasPage() {
               Templates customizados
             </h2>
           </div>
-          <SequenceLibrary sequences={sequences} isLoading={loadingSequences} />
+          <SequenceLibrary
+            sequences={sequences}
+            isLoading={loadingSequences}
+            onOpen={(sequenceId) => navigate(`/sequencias-v2/${sequenceId}`)}
+          />
         </section>
       </div>
     </DashboardLayout>

@@ -71,7 +71,9 @@ interface CompanyRow {
 }
 
 interface DealRow {
-  stage: string;
+  stage: string | null;
+  stage_id?: string | null;
+  stage_ref?: { name: string | null } | null;
   value: number | null;
   created_at: string | null;
 }
@@ -79,6 +81,12 @@ interface DealRow {
 interface InteractionRow {
   company_id: string | null;
   interaction_type: string;
+}
+
+interface ActivityMetricRow {
+  company_id: string | null;
+  kind: string | null;
+  payload: Record<string, unknown> | null;
 }
 
 interface Phase0Row {
@@ -123,6 +131,70 @@ async function countRows(table: string, build?: (query: ReturnType<typeof supaba
   } catch {
     return 0;
   }
+}
+
+function normalizeDealStage(row: DealRow) {
+  return row.stage || row.stage_ref?.name || "Qualificação";
+}
+
+async function getDealsForMetrics(): Promise<DealRow[]> {
+  const textStage = await supabase
+    .from("deals")
+    .select("stage, value, created_at");
+
+  if (!textStage.error) return (textStage.data ?? []) as DealRow[];
+
+  console.warn("[gtmMetricsService] deals.stage unavailable, falling back to stage_id:", textStage.error.message);
+  const stageId = await supabase
+    .from("deals")
+    .select("stage_id, value, created_at, stage_ref:stages(name)");
+
+  if (stageId.error) {
+    console.warn("[gtmMetricsService] deals metrics unavailable:", stageId.error.message);
+    return [];
+  }
+
+  return ((stageId.data ?? []) as DealRow[]).map((row) => ({
+    ...row,
+    stage: normalizeDealStage(row),
+  }));
+}
+
+function activityKindToInteractionType(kind: string | null, payload: Record<string, unknown> | null) {
+  if (typeof payload?.interaction_type === "string") return payload.interaction_type;
+  if (kind === "meeting") return "meeting";
+  if (kind === "stage_change" && payload?.to_stage === "Proposta") return "proposal_sent";
+  if (kind === "sequence_step") return "cadence_step";
+  return kind ?? "activity";
+}
+
+async function getInteractionRowsForMetrics(monthStartIso: string, nextMonthStartIso: string): Promise<InteractionRow[]> {
+  const activities = await supabase
+    .from("activities")
+    .select("company_id, kind, payload")
+    .gte("occurred_at", monthStartIso)
+    .lt("occurred_at", nextMonthStartIso);
+
+  if (!activities.error) {
+    return ((activities.data ?? []) as ActivityMetricRow[]).map((row) => ({
+      company_id: row.company_id,
+      interaction_type: activityKindToInteractionType(row.kind, row.payload),
+    }));
+  }
+
+  console.warn("[gtmMetricsService] activities unavailable, falling back to interactions:", activities.error.message);
+  const interactions = await supabase
+    .from("interactions")
+    .select("company_id, interaction_type")
+    .gte("created_at", monthStartIso)
+    .lt("created_at", nextMonthStartIso);
+
+  if (interactions.error) {
+    console.warn("[gtmMetricsService] interactions metrics unavailable:", interactions.error.message);
+    return [];
+  }
+
+  return (interactions.data ?? []) as InteractionRow[];
 }
 
 function getGoalHealth(actual: number, expectedActual: number, target: number): MetricCard["health"] {
@@ -192,8 +264,8 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
 
   const [
     { data: companiesData },
-    { data: dealsData },
-    { data: interactionsMonthData },
+    dealsRows,
+    interactionsMonthRows,
     { data: phase0MonthData },
     { data: launchesData },
     contacts,
@@ -205,12 +277,8 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
     supabase.from("companies").select(
       "id, status, buying_signal, cadence_status, last_interaction_at, vgv_projected, monthly_media_spend",
     ),
-    supabase.from("deals").select("stage, value, created_at"),
-    supabase
-      .from("interactions")
-      .select("company_id, interaction_type")
-      .gte("created_at", monthStartIso)
-      .lt("created_at", nextMonthStartIso),
+    getDealsForMetrics(),
+    getInteractionRowsForMetrics(monthStartIso, nextMonthStartIso),
     supabase
       .from("phase0_results")
       .select("company_id")
@@ -232,8 +300,6 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   ]);
 
   const companiesRows = (companiesData ?? []) as CompanyRow[];
-  const dealsRows = (dealsData ?? []) as DealRow[];
-  const interactionsMonthRows = (interactionsMonthData ?? []) as InteractionRow[];
   const phase0MonthRows = (phase0MonthData ?? []) as Phase0Row[];
   const launchesRows = (launchesData ?? []) as LaunchRow[];
 
@@ -245,11 +311,11 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   const mediaSpend = sumValues(companiesRows, (row) => row.monthly_media_spend);
 
   const deals = dealsRows.length;
-  const openDealsRows = dealsRows.filter((row) => !["Fechado - Ganho", "Fechado - Perdido"].includes(row.stage));
+  const openDealsRows = dealsRows.filter((row) => !["Fechado - Ganho", "Fechado - Perdido"].includes(normalizeDealStage(row)));
   const openDeals = openDealsRows.length;
   const pipelineValue = sumValues(openDealsRows, (row) => row.value);
-  const wonDeals = dealsRows.filter((row) => row.stage === "Fechado - Ganho").length;
-  const proposalDeals = dealsRows.filter((row) => ["Proposta", "Negociação"].includes(row.stage)).length;
+  const wonDeals = dealsRows.filter((row) => normalizeDealStage(row) === "Fechado - Ganho").length;
+  const proposalDeals = dealsRows.filter((row) => ["Proposta", "Negociação"].includes(normalizeDealStage(row))).length;
 
   const monthProspectedCompanies = new Set<string>();
   interactionsMonthRows.forEach((row) => {
@@ -274,12 +340,12 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
     Boolean(row.created_at)
     && row.created_at! >= monthStartIso
     && row.created_at! < nextMonthStartIso
-    && ["Proposta", "Negociação", "Fechado - Ganho"].includes(row.stage),
+    && ["Proposta", "Negociação", "Fechado - Ganho"].includes(normalizeDealStage(row)),
   ).length;
   const proposalsMonth = Math.max(proposalsFromInteractions, proposalsFromDeals);
 
   const wonDealsMonth = dealsRows.filter((row) =>
-    row.stage === "Fechado - Ganho"
+    normalizeDealStage(row) === "Fechado - Ganho"
     && Boolean(row.created_at)
     && row.created_at! >= monthStartIso
     && row.created_at! < nextMonthStartIso,
@@ -425,23 +491,23 @@ export async function getGtmMetrics(): Promise<GtmMetrics> {
   const pipeline: PipelineStageMetric[] = [
     {
       label: "Qualificação",
-      count: dealsRows.filter((row) => row.stage === "Qualificação").length,
-      value: sumValues(dealsRows.filter((row) => row.stage === "Qualificação"), (row) => row.value),
+      count: dealsRows.filter((row) => normalizeDealStage(row) === "Qualificação").length,
+      value: sumValues(dealsRows.filter((row) => normalizeDealStage(row) === "Qualificação"), (row) => row.value),
     },
     {
       label: "Proposta",
-      count: dealsRows.filter((row) => row.stage === "Proposta").length,
-      value: sumValues(dealsRows.filter((row) => row.stage === "Proposta"), (row) => row.value),
+      count: dealsRows.filter((row) => normalizeDealStage(row) === "Proposta").length,
+      value: sumValues(dealsRows.filter((row) => normalizeDealStage(row) === "Proposta"), (row) => row.value),
     },
     {
       label: "Negociação",
-      count: dealsRows.filter((row) => row.stage === "Negociação").length,
-      value: sumValues(dealsRows.filter((row) => row.stage === "Negociação"), (row) => row.value),
+      count: dealsRows.filter((row) => normalizeDealStage(row) === "Negociação").length,
+      value: sumValues(dealsRows.filter((row) => normalizeDealStage(row) === "Negociação"), (row) => row.value),
     },
     {
       label: "Fechado - Ganho",
-      count: dealsRows.filter((row) => row.stage === "Fechado - Ganho").length,
-      value: sumValues(dealsRows.filter((row) => row.stage === "Fechado - Ganho"), (row) => row.value),
+      count: dealsRows.filter((row) => normalizeDealStage(row) === "Fechado - Ganho").length,
+      value: sumValues(dealsRows.filter((row) => normalizeDealStage(row) === "Fechado - Ganho"), (row) => row.value),
     },
   ];
 

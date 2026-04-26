@@ -81,10 +81,11 @@ export async function upsertStepsV2(
   steps: Omit<StepV2, 'created_at'>[],
 ): Promise<void> {
   // Delete removed steps
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('sequence_steps_v2')
     .select('id')
     .eq('sequence_id', sequenceId);
+  if (existingError) throw existingError;
 
   const existingIds = new Set((existing ?? []).map((s) => s.id));
   const incomingIds = new Set(steps.filter((s) => !s.id.startsWith('new-')).map((s) => s.id));
@@ -92,21 +93,23 @@ export async function upsertStepsV2(
   // Delete steps that are no longer present
   const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
   if (toDelete.length > 0) {
-    await supabase.from('sequence_steps_v2').delete().in('id', toDelete);
+    const { error } = await supabase.from('sequence_steps_v2').delete().in('id', toDelete);
+    if (error) throw error;
   }
 
   // Upsert remaining
   for (const step of steps) {
     const isNew = step.id.startsWith('new-');
     if (isNew) {
-      await supabase.from('sequence_steps_v2').insert({
+      const { error } = await supabase.from('sequence_steps_v2').insert({
         sequence_id: sequenceId,
         position: step.position,
         step_type: step.step_type,
         config: step.config,
       });
+      if (error) throw error;
     } else {
-      await supabase
+      const { error } = await supabase
         .from('sequence_steps_v2')
         .update({
           position: step.position,
@@ -114,6 +117,7 @@ export async function upsertStepsV2(
           config: step.config,
         })
         .eq('id', step.id);
+      if (error) throw error;
     }
   }
 }
