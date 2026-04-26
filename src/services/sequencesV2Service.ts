@@ -157,28 +157,10 @@ export async function upsertStepEdgesV2(
   sequenceId: string,
   edges: Omit<StepEdgeV2, 'id' | 'created_at' | 'sequence_id'>[],
 ): Promise<void> {
-  const { error: deleteError } = await supabase
-    .from('sequence_step_edges')
-    .delete()
-    .eq('sequence_id', sequenceId);
-  if (deleteError) {
-    console.warn('[sequencesV2Service] could not reset sequence_step_edges:', deleteError.message);
-    return;
-  }
-
-  if (edges.length === 0) return;
-
-  const { error } = await supabase.from('sequence_step_edges').insert(
-    edges.map((edge) => ({
-      sequence_id: sequenceId,
-      source_step_id: edge.source_step_id,
-      target_step_id: edge.target_step_id,
-      source_handle: edge.source_handle,
-      target_handle: edge.target_handle,
-      label: edge.label,
-      edge_type: edge.edge_type,
-    })),
-  );
+  const { error } = await supabase.rpc('replace_sequence_step_edges', {
+    p_sequence_id: sequenceId,
+    p_edges: edges,
+  });
   if (error) throw error;
 }
 
