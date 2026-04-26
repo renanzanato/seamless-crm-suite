@@ -190,7 +190,7 @@ Corrigir o conceito central: sequencia e por conta e roda para pessoas seleciona
 - Revisar modelo atual de sequencias.
 - Introduzir conceito de `account_sequence` ou equivalente.
 - Uma sequencia precisa de `company_id`.
-- Uma sequencia precisa de uma lista de `contact_ids`.
+- Uma sequencia precisa de enrollments por `contact_id`, um registro por pessoa.
 - Bloquear criacao/inicio sem pessoas selecionadas.
 
 ### Criterios de aceite
@@ -315,4 +315,3 @@ Garantir que o CRM continue funcional com muitas contas.
 - Lista continua responsiva com alto volume.
 - Sequencias bloqueiam estados invalidos.
 - Copiloto lida bem com contexto ausente ou incompleto.
-

@@ -18,7 +18,7 @@ Objetivo: preparar a base para integrar e operar canais dentro do CRM sem acopla
    - enviar mensagem;
    - marcar status de entrega;
    - receber inbound;
-   - gerar log em `interactions`.
+   - gerar log em `activities`.
 3. A execucao de tarefas da cadencia deve chamar um `channel hub`, nao APIs soltas.
 4. Toda mensagem enviada ou recebida deve virar dado estruturado no CRM.
 
@@ -52,7 +52,7 @@ Objetivo: preparar a base para integrar e operar canais dentro do CRM sem acopla
 2. Operador ou automacao chama `channelHub.sendMessage(...)`.
 3. O provider envia no canal real.
 4. O retorno grava `channel_messages`.
-5. Um log resumido entra em `interactions`.
+5. Um log resumido entra em `activities`.
 6. O copiloto le o historico consolidado por conta.
 
 ## Proximos passos

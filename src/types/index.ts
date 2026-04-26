@@ -123,6 +123,8 @@ export interface Deal {
   id: string;
   title: string;
   value: number | null;
+  stage_id: string | null;
+  /** Derived label from `stages.name`; do not persist to `deals.stage`. */
   stage: string;
   funnel_id: string | null;
   contact_id: string | null;
@@ -131,6 +133,7 @@ export interface Deal {
   expected_close: string | null;
   created_at: string;
   custom_data?: Record<string, unknown> | null;
+  stage_ref?: { id?: string; name: string; color?: string | null; order?: number | null } | null;
   funnel?: Pick<Funnel, 'id' | 'name'> | null;
   contact?: (Pick<Contact, 'id' | 'name'> & Partial<Pick<Contact, 'email' | 'whatsapp' | 'phone' | 'role'>>) | null;
   company?: (Pick<Company, 'id' | 'name'> & Partial<Pick<Company, 'city' | 'segment' | 'buying_signal'>>) | null;

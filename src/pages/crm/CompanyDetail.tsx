@@ -377,28 +377,28 @@ function CadenceTimeline({ company, contacts }: { company: Company; contacts: Co
   );
 }
 
-// ── Interactions Tab ─────────────────────────────────────
+// ── Activities Legacy Tab ────────────────────────────────
 
 function InteractionFeed({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
   const { data: interactions = [], isLoading } = useQuery({
-    queryKey: ['interactions', companyId],
+    queryKey: ['company-legacy-activities', companyId],
     queryFn: () => getInteractions(companyId),
   });
 
   useEffect(() => {
     const channel = supabase
-      .channel(`company-interactions-${companyId}`)
+      .channel(`company-activities-${companyId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'interactions',
+          table: 'activities',
           filter: `company_id=eq.${companyId}`,
         },
         () => {
-          qc.invalidateQueries({ queryKey: ['interactions', companyId] });
+          qc.invalidateQueries({ queryKey: ['company-legacy-activities', companyId] });
         },
       )
       .subscribe();
@@ -652,7 +652,7 @@ export default function CompanyDetail() {
       qc.invalidateQueries({ queryKey: ['company', id] }),
       qc.invalidateQueries({ queryKey: ['companies'] }),
       qc.invalidateQueries({ queryKey: ['account-signals', id] }),
-      qc.invalidateQueries({ queryKey: ['interactions', id] }),
+      qc.invalidateQueries({ queryKey: ['company-legacy-activities', id] }),
       qc.invalidateQueries({ queryKey: ['daily-tasks'] }),
       qc.invalidateQueries({ queryKey: ['abm-stats'] }),
       qc.invalidateQueries({ queryKey: ['account-stats'] }),
@@ -1093,7 +1093,7 @@ export default function CompanyDetail() {
                   <TabsTrigger value="signals">Sinais</TabsTrigger>
                   <TabsTrigger value="cadence">Cadência</TabsTrigger>
                   <TabsTrigger value="whatsapp">Conversa WhatsApp</TabsTrigger>
-                  <TabsTrigger value="interactions">Interações (legacy)</TabsTrigger>
+                  <TabsTrigger value="interactions">Atividades</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="timeline" className="mt-0">

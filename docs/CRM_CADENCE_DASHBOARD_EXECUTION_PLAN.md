@@ -101,7 +101,7 @@ Escopo:
 - Corrigir consultas que ainda dependem de:
   - `interactions` quando deveriam usar `activities`;
   - `deals.stage` quando o schema usa `stage_id`;
-  - `contact_ids` quando o schema usa `contact_id`;
+  - arrays de contatos em payload quando o schema operacional usa `contact_id`;
   - tabelas opcionais sem fallback.
 - Adicionar estados de erro claros em telas criticas.
 - Garantir cleanup de subscriptions Supabase em unmount.

@@ -4,12 +4,71 @@ import type { BuyingSignal, CompanyStatus, Contact, Company, Deal, Funnel, Profi
 // ── SELECT fragments ────────────────────────────────────────────────────────
 const CONTACT_SELECT = '*, company:companies(id, name), owner:profiles(id, name)';
 const COMPANY_SELECT = '*, owner:profiles(id, name)';
-const DEAL_SELECT    = '*, funnel:funnels(id, name), contact:contacts(id, name, email, whatsapp, phone, role), company:companies(id, name, city, segment, buying_signal), owner:profiles(id, name)';
+const DEAL_SELECT    = 'id, title, value, stage_id, funnel_id, contact_id, company_id, owner_id, expected_close, created_at, custom_data, stage_ref:stages(id, name, color, order), funnel:funnels(id, name), contact:contacts(id, name, email, whatsapp, phone, role), company:companies(id, name, city, segment, buying_signal), owner:profiles(id, name)';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function throwOnError<T>({ data, error }: { data: T | null; error: unknown }): T {
   if (error) throw error;
   return data as T;
+}
+
+type DealStageRef = { id: string; name: string; color?: string | null; order?: number | null } | null;
+type DealRow = Omit<Deal, 'stage' | 'stage_ref'> & { stage_ref?: DealStageRef };
+
+function normalizeDeal(row: DealRow): Deal {
+  return {
+    ...row,
+    stage: row.stage_ref?.name ?? 'Qualificação',
+    stage_ref: row.stage_ref ?? null,
+  };
+}
+
+async function resolveStageIdByName(stageName: string, funnelId?: string | null): Promise<string | null> {
+  let query = supabase
+    .from('stages')
+    .select('id')
+    .eq('name', stageName)
+    .limit(1);
+
+  if (funnelId) query = query.eq('funnel_id', funnelId);
+
+  const initial = await query.maybeSingle();
+  let data = initial.data;
+  if (initial.error) throw initial.error;
+  if (data?.id) return data.id;
+
+  if (funnelId) {
+    const fallback = await supabase
+      .from('stages')
+      .select('id')
+      .eq('name', stageName)
+      .limit(1)
+      .maybeSingle();
+    if (fallback.error) throw fallback.error;
+    data = fallback.data;
+  }
+
+  return data?.id ?? null;
+}
+
+async function prepareDealPayload(
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const next = { ...payload };
+  const stageName = typeof next.stage === 'string' ? next.stage : null;
+  if (stageName && !next.stage_id) {
+    next.stage_id = await resolveStageIdByName(
+      stageName,
+      typeof next.funnel_id === 'string' ? next.funnel_id : null,
+    );
+  }
+  delete next.stage;
+  delete next.stage_ref;
+  delete next.funnel;
+  delete next.contact;
+  delete next.company;
+  delete next.owner;
+  return next;
 }
 
 // ── Profiles ─────────────────────────────────────────────────────────────────
@@ -178,6 +237,7 @@ export interface ContactDealSummary {
   id: string;
   title: string;
   stage: string;
+  stage_id: string | null;
   value: number | null;
   expected_close: string | null;
   company_id: string | null;
@@ -212,7 +272,7 @@ export async function getContactRelations(
 
   const dealsQuery = supabase
     .from('deals')
-    .select('id, title, stage, value, expected_close, company_id, contact_id')
+    .select('id, title, stage_id, value, expected_close, company_id, contact_id, stage_ref:stages(name)')
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -239,7 +299,10 @@ export async function getContactRelations(
 
   return {
     company: (companyRes.data as ContactCompanySummary | null) ?? null,
-    deals: (dealsRes.data ?? []) as ContactDealSummary[],
+    deals: ((dealsRes.data ?? []) as Array<ContactDealSummary & { stage_ref?: { name: string | null } | null }>).map((deal) => ({
+      ...deal,
+      stage: deal.stage_ref?.name ?? 'Qualificação',
+    })),
     siblings: (siblingsRes.data ?? []) as ContactSiblingSummary[],
   };
 }
@@ -310,12 +373,16 @@ export async function getDeals(params: { search?: string; stage?: string; ownerI
   let q = supabase.from('deals').select(DEAL_SELECT).order('created_at', { ascending: false });
 
   if (params.search) q = q.ilike('title', `%${params.search}%`);
-  if (params.stage)  q = q.eq('stage', params.stage);
+  if (params.stage) {
+    const stageId = await resolveStageIdByName(params.stage);
+    if (!stageId) return [];
+    q = q.eq('stage_id', stageId);
+  }
   if (params.ownerId) q = q.eq('owner_id', params.ownerId);
 
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []) as Deal[];
+  return ((data ?? []) as unknown as DealRow[]).map(normalizeDeal);
 }
 
 export async function getDeal(id: string): Promise<Deal | null> {
@@ -325,19 +392,23 @@ export async function getDeal(id: string): Promise<Deal | null> {
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
-  return (data as Deal | null) ?? null;
+  return data ? normalizeDeal(data as unknown as DealRow) : null;
 }
 
 export async function createDeal(payload: Omit<Deal, 'id' | 'created_at' | 'funnel' | 'contact' | 'company' | 'owner'>): Promise<Deal> {
-  return throwOnError(
-    await supabase.from('deals').insert(payload).select(DEAL_SELECT).single()
-  ) as Deal;
+  const prepared = await prepareDealPayload(payload as unknown as Record<string, unknown>);
+  const row = throwOnError(
+    await supabase.from('deals').insert(prepared).select(DEAL_SELECT).single()
+  ) as unknown as DealRow;
+  return normalizeDeal(row);
 }
 
 export async function updateDeal(id: string, payload: Partial<Omit<Deal, 'id' | 'created_at' | 'funnel' | 'contact' | 'company' | 'owner'>>): Promise<Deal> {
-  return throwOnError(
-    await supabase.from('deals').update(payload).eq('id', id).select(DEAL_SELECT).single()
-  ) as Deal;
+  const prepared = await prepareDealPayload(payload as unknown as Record<string, unknown>);
+  const row = throwOnError(
+    await supabase.from('deals').update(prepared).eq('id', id).select(DEAL_SELECT).single()
+  ) as unknown as DealRow;
+  return normalizeDeal(row);
 }
 
 export async function deleteDeal(id: string): Promise<void> {

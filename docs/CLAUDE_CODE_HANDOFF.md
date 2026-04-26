@@ -588,7 +588,7 @@ ESCOPO
    - Tabela de enrollments com filtro por status.
 
 6. BULK ENROLL:
-   - Modal "Enrollar em sequence" recebe array de contact_ids ou um `list_id` (Onda 2).
+   - Modal "Enrollar em sequence" recebe enrollments por `contact_id` ou um `list_id` (Onda 2).
    - Cria N enrollments (insert batch em `cadence_tracks` com status='active', sequence_id, contact_id, position=0).
    - Respeita quota diária se config: `sequence.max_enrollments_per_day int`.
 

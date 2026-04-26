@@ -138,13 +138,6 @@ function normalizeDealStage(row: DealRow) {
 }
 
 async function getDealsForMetrics(): Promise<DealRow[]> {
-  const textStage = await supabase
-    .from("deals")
-    .select("stage, value, created_at");
-
-  if (!textStage.error) return (textStage.data ?? []) as DealRow[];
-
-  console.warn("[gtmMetricsService] deals.stage unavailable, falling back to stage_id:", textStage.error.message);
   const stageId = await supabase
     .from("deals")
     .select("stage_id, value, created_at, stage_ref:stages(name)");
@@ -182,19 +175,8 @@ async function getInteractionRowsForMetrics(monthStartIso: string, nextMonthStar
     }));
   }
 
-  console.warn("[gtmMetricsService] activities unavailable, falling back to interactions:", activities.error.message);
-  const interactions = await supabase
-    .from("interactions")
-    .select("company_id, interaction_type")
-    .gte("created_at", monthStartIso)
-    .lt("created_at", nextMonthStartIso);
-
-  if (interactions.error) {
-    console.warn("[gtmMetricsService] interactions metrics unavailable:", interactions.error.message);
-    return [];
-  }
-
-  return (interactions.data ?? []) as InteractionRow[];
+  console.warn("[gtmMetricsService] activities metrics unavailable:", activities.error.message);
+  return [];
 }
 
 function getGoalHealth(actual: number, expectedActual: number, target: number): MetricCard["health"] {

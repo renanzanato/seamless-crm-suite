@@ -21,7 +21,7 @@
 - **`companies`** — organização. Campos: `id`, `name`, `domain`, `cnpj`, `industry`, `size`, `city`, `owner_id`, `lifecycle_stage`, `source`, `created_at`, `custom_props (jsonb)`.
 - **`contacts`** — pessoa em uma company. Campos: `id`, `name`, `email`, `whatsapp`, `phone`, `role` (cargo), `company_id`, `owner_id`, **`lifecycle_stage`** (`subscriber\|lead\|mql\|sql\|opportunity\|customer\|evangelist\|disqualified`), `source`, `created_at`, `last_activity_at`, `custom_props`.
 - **`deals`** — negociação. Campos: `id`, `title`, `value`, `currency`, `stage_id`, `pipeline_id`, `company_id`, `primary_contact_id`, `owner_id`, `expected_close`, `probability`, `source`, `created_at`, `closed_at`, `lost_reason`, `custom_props`.
-- **`activities`** — evento único na timeline. Campos: `id`, `kind`, `subject`, `body`, `direction (in\|out)`, `occurred_at`, `created_by`, `contact_ids[]`, `company_id`, `deal_id`, `payload (jsonb)`. Tipos de `kind`: `note`, `email`, `call`, `meeting`, `whatsapp`, `task`, `sequence_step`, `stage_change`, `property_change`, `enrollment`.
+- **`activities`** — evento único na timeline. Campos: `id`, `kind`, `subject`, `body`, `direction (in\|out)`, `occurred_at`, `created_by`, `contact_id`, `company_id`, `deal_id`, `payload (jsonb)`. Tipos de `kind`: `note`, `email`, `call`, `meeting`, `whatsapp`, `task`, `sequence_step`, `stage_change`, `property_change`, `enrollment`.
 
 ### Suporte técnico
 
@@ -69,7 +69,7 @@ Cada onda tem: **objetivo**, **tarefas**, **critério de aceite**. Ordem é firm
 2. Arquivar migrations conflitantes (`20260419_mirror_schema.sql`, `20260419_fix_whatsapp_messages.sql`) pra pasta `archived/` com README.
 3. Decidir e documentar schema canônico de `whatsapp_messages` + `whatsapp_conversations` (o que fica, o que sai). Não migrar ainda — só decidir.
 4. Adicionar `lifecycle_stage` em `contacts` (enum, default `'lead'`, com migration + backfill).
-5. Criar tabela `activities` com migration que consolida dados existentes (`interactions` + `whatsapp_messages` → `activities`). Dual-write a partir da RPC (insere nos dois enquanto UI migra).
+5. Criar tabela `activities` com migration que consolida dados existentes (`interactions` + `whatsapp_messages` → `activities`). A partir da estabilização, runtime novo escreve somente em `activities`; `interactions` fica legado read-only para auditoria/backfill.
 6. Matar páginas redundantes (decidir quais) e remover rotas.
 
 **Critério de aceite**:

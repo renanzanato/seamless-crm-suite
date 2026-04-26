@@ -254,7 +254,8 @@ export function ConversationLogger({ open, onOpenChange, companyId, companyName,
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wa-conversations", companyId] });
-      qc.invalidateQueries({ queryKey: ["interactions", companyId] });
+      qc.invalidateQueries({ queryKey: ["company-legacy-activities", companyId] });
+      qc.invalidateQueries({ queryKey: ["activities", "company", companyId] });
       qc.invalidateQueries({ queryKey: ["company", companyId] });
       qc.invalidateQueries({ queryKey: ["companies"] });
       toast.success("Conversa registrada e analisada!");

@@ -167,21 +167,39 @@ export async function createTask(
   return data;
 }
 
-// ── Interactions ─────────────────────────────────────────
+// ── Legacy interaction facade backed by activities ───────
+
+function activityKindToLegacyInteractionType(kind: string, payload: Record<string, unknown>) {
+  if (typeof payload.interaction_type === "string") return payload.interaction_type;
+  if (kind === "sequence_step") return "cadence_step";
+  return kind;
+}
+
+function legacyInteractionTypeToActivityKind(type: string) {
+  if (type.includes("whatsapp")) return "whatsapp";
+  if (type.includes("email")) return "email";
+  if (type.includes("call")) return "call";
+  if (type === "meeting") return "meeting";
+  if (type === "cadence_step") return "sequence_step";
+  return "note";
+}
+
+function legacyDirectionToActivityDirection(direction: Interaction["direction"]) {
+  if (direction === "inbound") return "in";
+  if (direction === "outbound") return "out";
+  return null;
+}
+
+function activityDirectionToLegacyDirection(direction: "in" | "out" | null) {
+  if (direction === "in") return "inbound";
+  if (direction === "out") return "outbound";
+  return null;
+}
 
 export async function getInteractions(
   companyId: string,
   limit = 50
 ): Promise<Interaction[]> {
-  const legacy = await supabase
-    .from("interactions")
-    .select(`*, contact:contacts(name)`)
-    .eq("company_id", companyId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (!legacy.error) return legacy.data || [];
-
-  console.warn("[abmService] interactions unavailable, falling back to activities:", legacy.error.message);
   const { data, error } = await supabase
     .from("activities")
     .select("id, company_id, contact_id, deal_id, kind, subject, body, direction, occurred_at, created_by, payload, contact:contacts(name)")
@@ -201,11 +219,11 @@ export async function getInteractions(
       company_id: activity.company_id,
       contact_id: activity.contact_id,
       deal_id: activity.deal_id,
-      interaction_type: String(payload.interaction_type ?? activity.kind),
+      interaction_type: activityKindToLegacyInteractionType(activity.kind, payload),
       content: activity.body,
       summary: activity.subject,
       channel: String(payload.channel ?? activity.kind),
-      direction: activity.direction === "in" ? "inbound" : activity.direction === "out" ? "outbound" : null,
+      direction: activityDirectionToLegacyDirection(activity.direction),
       persona_type: (payload.persona_type as PersonaType | null) ?? null,
       cadence_day: typeof payload.cadence_day === "number" ? payload.cadence_day : null,
       created_by: activity.created_by,
@@ -219,13 +237,49 @@ export async function getInteractions(
 export async function logInteraction(
   payload: Omit<Interaction, "id" | "created_at" | "contact">
 ): Promise<Interaction> {
+  const kind = legacyInteractionTypeToActivityKind(payload.interaction_type);
+  const direction = legacyDirectionToActivityDirection(payload.direction);
   const { data, error } = await supabase
-    .from("interactions")
-    .insert(payload)
-    .select()
+    .from("activities")
+    .insert({
+      kind,
+      subject: payload.summary,
+      body: payload.content,
+      direction,
+      occurred_at: new Date().toISOString(),
+      created_by: payload.created_by,
+      contact_id: payload.contact_id,
+      company_id: payload.company_id,
+      deal_id: payload.deal_id,
+      payload: {
+        ...payload.metadata,
+        source: "legacy_log_interaction_facade",
+        interaction_type: payload.interaction_type,
+        channel: payload.channel,
+        persona_type: payload.persona_type,
+        cadence_day: payload.cadence_day,
+      },
+    })
+    .select("id, company_id, contact_id, deal_id, kind, subject, body, direction, occurred_at, created_by, payload")
     .single();
   if (error) throw error;
-  return data;
+  const activityPayload = (data.payload ?? {}) as Record<string, unknown>;
+  return {
+    id: data.id,
+    company_id: data.company_id,
+    contact_id: data.contact_id,
+    deal_id: data.deal_id,
+    interaction_type: activityKindToLegacyInteractionType(data.kind, activityPayload),
+    content: data.body,
+    summary: data.subject,
+    channel: String(activityPayload.channel ?? data.kind),
+    direction: activityDirectionToLegacyDirection(data.direction),
+    persona_type: (activityPayload.persona_type as PersonaType | null) ?? null,
+    cadence_day: typeof activityPayload.cadence_day === "number" ? activityPayload.cadence_day : null,
+    created_by: data.created_by,
+    created_at: data.occurred_at,
+    metadata: activityPayload,
+  };
 }
 
 // ── Account Signals ──────────────────────────────────────

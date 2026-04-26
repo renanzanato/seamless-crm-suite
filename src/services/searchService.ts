@@ -23,15 +23,6 @@ interface DealSearchRow {
 }
 
 async function searchDeals(term: string): Promise<DealSearchRow[]> {
-  const textStage = await supabase
-    .from('deals')
-    .select('id, title, stage, value')
-    .or(`title.ilike.${term}`)
-    .limit(8);
-
-  if (!textStage.error) return (textStage.data ?? []) as DealSearchRow[];
-
-  console.warn('[searchService] deals.stage unavailable, falling back to stage_id:', textStage.error.message);
   const stageId = await supabase
     .from('deals')
     .select('id, title, value, stage_ref:stages(name)')

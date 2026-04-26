@@ -46,12 +46,12 @@ async function getRouteContext(pathname: string) {
   }
 
   const companyId = companyMatch[1];
-  const [company, contacts, launches, signals, interactions] = await Promise.all([
+  const [company, contacts, launches, signals, activities] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).maybeSingle(),
     supabase.from("contacts").select("id, name, role, email, whatsapp").eq("company_id", companyId).order("name"),
     supabase.from("company_launches").select("*").eq("company_id", companyId).order("created_at", { ascending: false }),
     supabase.from("account_signals").select("*").eq("company_id", companyId).order("detected_at", { ascending: false }),
-    supabase.from("interactions").select("*").eq("company_id", companyId).order("created_at", { ascending: false }).limit(10),
+    supabase.from("activities").select("*").eq("company_id", companyId).order("occurred_at", { ascending: false }).limit(10),
   ]);
 
   return {
@@ -64,7 +64,7 @@ async function getRouteContext(pathname: string) {
       contacts: contacts.data ?? [],
       launches: launches.data ?? [],
       signals: signals.data ?? [],
-      recentInteractions: interactions.data ?? [],
+      recentActivities: activities.data ?? [],
     },
   };
 }

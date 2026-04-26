@@ -157,6 +157,10 @@ export default function DealDetail() {
     newValue: InlineEditValue,
   ) => {
     if (!deal) throw new Error('Deal nao carregado.');
+    if (field === 'stage') {
+      await moveStageMutation.mutateAsync(String(newValue));
+      return;
+    }
     await updateDealProperty({
       id: deal.id,
       field,

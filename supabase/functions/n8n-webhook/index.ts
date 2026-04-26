@@ -653,18 +653,12 @@ async function processWhatsAppEvent(
       ? "paused"
       : company.cadence_status;
 
-  const interactionPayload = compactObject({
-    company_id: companyId,
-    contact_id: contact?.id ?? null,
-    deal_id: payload.deal_id ?? null,
+  const activityPayload = compactObject({
+    source: "n8n_webhook",
     interaction_type: payload.whatsapp.direction === "inbound" ? "whatsapp_received" : "whatsapp_sent",
-    content: payload.whatsapp.message,
-    summary: deriveInteractionSummary(payload),
     channel: "whatsapp",
-    direction: payload.whatsapp.direction,
     persona_type: personaType,
     cadence_day: payload.whatsapp.cadence_day ?? completedTask?.cadence_day ?? null,
-    created_by: integration?.configured_by ?? null,
     metadata: {
       external_event_id: payload.external_event_id ?? null,
       provider: payload.whatsapp.provider ?? integration?.name ?? "whatsapp",
@@ -675,13 +669,24 @@ async function processWhatsAppEvent(
     },
   });
 
-  const { data: interaction, error: interactionError } = await supabase
-    .from("interactions")
-    .insert(interactionPayload)
+  const { data: activity, error: activityError } = await supabase
+    .from("activities")
+    .insert({
+      kind: "whatsapp",
+      subject: deriveInteractionSummary(payload),
+      body: payload.whatsapp.message,
+      direction: payload.whatsapp.direction === "inbound" ? "in" : "out",
+      occurred_at: occurredAt,
+      created_by: integration?.configured_by ?? null,
+      contact_id: contact?.id ?? null,
+      company_id: companyId,
+      deal_id: payload.deal_id ?? null,
+      payload: activityPayload,
+    })
     .select("id")
     .single();
 
-  if (interactionError) throw interactionError;
+  if (activityError) throw activityError;
 
   const { error: companyError } = await supabase
     .from("companies")
@@ -717,7 +722,7 @@ async function processWhatsAppEvent(
       source: "whatsapp_auto",
       confidence: 0.8,
       metadata: {
-        interaction_id: interaction.id,
+        activity_id: activity.id,
         external_event_id: payload.external_event_id ?? null,
       },
       createdBy: integration?.configured_by ?? null,
@@ -728,10 +733,11 @@ async function processWhatsAppEvent(
   return {
     companyId,
     contactId: contact?.id ?? null,
-    interactionId: interaction.id as string,
+    interactionId: activity.id as string,
+    activityId: activity.id as string,
     taskId,
     signalIds: createdSignalIds,
-    summary: interactionPayload.summary,
+    summary: deriveInteractionSummary(payload),
     source,
   };
 }
@@ -769,17 +775,22 @@ async function processMarketSignalEvent(
     createdBy: integration?.configured_by ?? null,
   });
 
-  const { data: interaction, error: interactionError } = await supabase
-    .from("interactions")
+  const { data: activity, error: activityError } = await supabase
+    .from("activities")
     .insert({
-      company_id: companyId,
-      interaction_type: "note",
-      content: description,
-      summary: `Sinal de mercado detectado: ${description}`,
-      channel: "market_signal",
-      direction: "inbound",
+      kind: "note",
+      subject: `Sinal de mercado detectado: ${description}`,
+      body: description,
+      direction: "in",
+      occurred_at: toIsoDate(payload.timestamp),
       created_by: integration?.configured_by ?? null,
-      metadata: {
+      company_id: companyId,
+      contact_id: null,
+      deal_id: null,
+      payload: {
+        source: "n8n_webhook",
+        interaction_type: "note",
+        channel: "market_signal",
         signal_type: signalType,
         signal_id: signalId,
         external_event_id: payload.external_event_id ?? null,
@@ -789,7 +800,7 @@ async function processMarketSignalEvent(
     .select("id")
     .single();
 
-  if (interactionError) throw interactionError;
+  if (activityError) throw activityError;
 
   const { error: companyError } = await supabase
     .from("companies")
@@ -815,7 +826,8 @@ async function processMarketSignalEvent(
   return {
     companyId,
     contactId: null,
-    interactionId: interaction.id as string,
+    interactionId: activity.id as string,
+    activityId: activity.id as string,
     signalIds: signalId ? [signalId] : [],
     taskId,
     summary: description,

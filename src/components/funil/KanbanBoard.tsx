@@ -11,8 +11,8 @@ import { toast } from 'sonner';
 import { StageColumn } from './StageColumn';
 import { DealCard } from './DealCard';
 import { createStageChangeActivity } from '@/services/activitiesService';
+import { updateDeal } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
 import type { Deal } from '@/types';
 import { DEAL_STAGES } from '@/types';
 
@@ -58,12 +58,7 @@ export function KanbanBoard({ deals, onDealsChange, onDealMoved }: KanbanBoardPr
       onDealsChange(updated);
 
       try {
-        // Update deal stage in DB
-        const { error: updateErr } = await supabase
-          .from('deals')
-          .update({ stage: toStage })
-          .eq('id', draggedDeal.id);
-        if (updateErr) throw updateErr;
+        await updateDeal(draggedDeal.id, { stage: toStage });
 
         // Create stage_change activity
         await createStageChangeActivity({

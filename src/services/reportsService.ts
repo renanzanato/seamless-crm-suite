@@ -92,13 +92,6 @@ async function getDealRowsForReports(params: {
   };
 
   const ownerSelect = params.includeOwner ? ', owner_id, owner:profiles!deals_owner_id_fkey(id, name)' : '';
-  const textStage = await applyFilters(
-    supabase.from('deals').select(`stage, value${ownerSelect}`),
-  );
-
-  if (!textStage.error) return (textStage.data ?? []) as DealReportRow[];
-
-  console.warn('[reportsService] deals.stage unavailable, falling back to stage_id:', textStage.error.message);
   const stageId = await applyFilters(
     supabase.from('deals').select(`value, stage_ref:stages(name)${ownerSelect}`),
   );
