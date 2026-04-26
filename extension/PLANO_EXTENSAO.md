@@ -156,6 +156,59 @@ Para reduzir preflight desnecessario, o background nao envia header customizado 
 
 O botao da aba IA envia texto por `window.WPP.chat.sendTextMessage` atraves da bridge `SEND_TEXT_MESSAGE`. O caminho antigo por `contenteditable`, `document.execCommand` e clique no botao nativo foi removido para reduzir fragilidade de DOM.
 
+### 3.11 Heartbeat e self-check
+
+- A extensao envia `POST /extension/heartbeat` a cada 60s.
+- Payload: `{ protocol_version, extension_version, account_hash (sha256 do numero logado), active_chat_id_hash, queue_length, last_sync_at, selectors_ok }`.
+- Self-check ao boot valida presenca de `window.WPP`, `#pane-side`, `#main`, e cada seletor critico de `selectors.ts`. Se algum falha: dispara evento `selector_missing` na telemetria e mostra alerta no popup ANTES do primeiro espelhamento.
+- CRM expoe status verde/amarelo/vermelho da extensao por usuario consumindo o heartbeat.
+
+### 3.12 Fila persistente e retry
+
+- Mensagem capturada vai para fila em IndexedDB (NAO `chrome.storage.local` - quota baixa).
+- Schema: `{ id (raw_id), payload, attempts, next_attempt_at, created_at }`.
+- Retry exponencial: 30s, 2min, 10min, 30min, 2h, 6h, 24h. Apos 24h marca como dead-letter.
+- Background drena a fila independente de novas capturas.
+- Idempotencia garantida por `raw_id` no servidor.
+
+### 3.13 Telemetria estruturada
+
+Eventos que a extensao emite:
+
+- `boot_ok`, `boot_failed`, `wpp_ready`, `wpp_timeout`
+- `selector_missing { selector_name }`
+- `lookup_ok`, `lookup_denied`, `lookup_error`
+- `sync_ok`, `sync_failed`, `sync_retry`
+- `send_ok`, `send_failed`, `send_blocked_rate_limit`, `send_blocked_window`
+- `protocol_version_mismatch`
+- `account_changed`
+- `whatsapp_verification_required`
+
+Cada evento carrega: `chat_hash` (sha256 do `chat_id`), `protocol_version`, `latency_ms`, `ts`.
+Buffer local + envio batch via `POST /extension/telemetry` a cada 5min OU 50 eventos, o que vier primeiro.
+
+### 3.14 Rate limiting client-side
+
+- Defaults: 30 envios/min, 200/h, 800/dia por conta WhatsApp.
+- Configuraveis via `GET /extension/config`.
+- Janela horaria do contato (timezone do contato se disponivel, fallback timezone do owner). Padrao 9h-18h dia util BR.
+- Jitter humano entre envios consecutivos: 8-25s aleatorio.
+- Excedeu? Envio e enfileirado para proxima janela valida, nao rejeitado.
+
+### 3.15 API local para automacao externa (OpenClaw)
+
+- Mecanismo: Chrome Native Messaging Host registrado como `com.pipa.bridge`. Sem porta TCP exposta.
+- Token rotativo de 256 bits gravado em `~/.pipa/token` (lido por OpenClaw, regenerado a cada boot da extensao).
+- Comandos expostos:
+  - `extension.getStatus()` -> `{ protocol_version, account_hash, active_chat_id_hash, queue_length }`
+  - `extension.listChats()` -> `[{ chat_id, title }]` (sem mensagens)
+  - `extension.openChat({ chat_id })`
+  - `extension.getRecentMessages({ chat_id, limit })` -> ultimas N do que ja foi capturado
+  - `extension.sendMessage({ chat_id, body, idempotency_key })` -> `{ message_id } | { error }`
+  - `extension.dryRunSend({ chat_id, body })` -> `{ rendered_body, rate_limit_ok, window_ok, account_ok }`
+- Toda chamada exige header `X-Pipa-Token`. Toda chamada loga activity no CRM com `actor = "openclaw"`.
+- Kill switch: toggle `block_external_commands` no popup. CRM seta remoto via `/extension/config`. Ligado -> todos os comandos retornam 403.
+
 ---
 
 ## 4. Contrato minimo da API CRM
@@ -228,6 +281,18 @@ Payload principal:
 }
 ```
 
+### Heartbeat
+
+`POST /extension/heartbeat` - payload conforme 3.11. Resposta 200 com `{ ok: true, config_revision }`.
+
+### Telemetria
+
+`POST /extension/telemetry` - body `{ events: [...] }`. Resposta 200 vazia.
+
+### Configuracao remota
+
+`GET /extension/config` - retorna `{ protocol_min_version, rate_limits, business_window, block_external_commands, kill_switch_reason }`.
+
 ---
 
 ## 5. Tabela anti-bugs
@@ -255,6 +320,11 @@ Payload principal:
 | API do CRM pendura | Service worker fica esperando indefinidamente | `AbortController` com timeout de 15s |
 | DDD invalido gera telefone alternativo | CRM acha contato errado | Variantes BR so para DDD valido |
 | Envio DOM quebra por mudanca visual | Draft nao sai | Envio primario via WPP bridge |
+| OpenClaw envia em chat errado | Vazamento operacional grave | Token rotativo + activity com `actor=openclaw` + dry-run obrigatorio no boot |
+| WhatsApp pede verificacao | Conta pode ser banida | Heartbeat sinaliza, CRM pausa toda automacao para a conta |
+| Numero logado mudou sem logout | Mensagem entra no contato errado | Heartbeat compara `account_hash`; mismatch forca logout no popup |
+| OpenClaw envia fora da janela | Risco de spam complaint | Validacao na propria `extension.sendMessage` antes de chamar WPP |
+| Fila local cresce sem drenar | IndexedDB enche | Limite de 5000 itens; alerta acima de 1000; dead-letter apos 24h |
 
 ---
 
@@ -276,7 +346,8 @@ Payload principal:
 
 ## 7. Proximas fases
 
-1. Validar captura em chat real com texto, audio, imagem, citacao e mensagem enviada pelo vendedor.
-2. Adicionar log de diagnostico no popup para mostrar ultima conversa monitorada e ultimo erro.
-3. Implementar envio CRM -> WhatsApp com fila, delays humanos e confirmacao de chat ativo.
-4. Depois do inbound/outbound estar estavel, reabrir o escopo de IA, RAG e regras de follow-up no backend.
+1. Hardening da extensao (Onda E1).
+2. API local + OpenClaw (Ondas E2 + Sprint OpenClaw).
+3. CRM endpoints de extensao (heartbeat, telemetry, config, dashboard).
+4. Outbound CRM -> WhatsApp via cadencia (ja parcial em sequence-worker-v2).
+5. IA / RAG amplo so depois de Onda 9 do plano CRM_BASIC_WAVES fechar.
