@@ -21,8 +21,13 @@ BEGIN
   ) INTO has_stage_id;
 
   IF NOT has_stage_id THEN
-    ALTER TABLE public.deals
-      ADD COLUMN stage_id uuid REFERENCES public.stages(id) ON DELETE SET NULL;
+    IF to_regclass('public.stages') IS NOT NULL THEN
+      ALTER TABLE public.deals
+        ADD COLUMN stage_id uuid REFERENCES public.stages(id) ON DELETE SET NULL;
+    ELSE
+      ALTER TABLE public.deals ADD COLUMN stage_id uuid;
+      RAISE NOTICE 'public.stages absent; FK deals.stage_id -> stages.id must be added after stages table is created';
+    END IF;
   END IF;
 
   SELECT EXISTS (
