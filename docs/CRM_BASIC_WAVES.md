@@ -148,3 +148,28 @@ Pronto quando: toda resposta inbound aparece no Inbox, vincula ao contato e ofer
 - Nenhum codigo novo le `deals.stage` ou `interactions`.
 - IA fica fora ate Onda 9 fechar.
 
+## Débito técnico conhecido (pós-auditoria 2026-04-26)
+
+- [ ] **Renderer de template duplicado UI/worker.**
+  `src/lib/templateRenderer.ts` e `supabase/functions/sequence-worker-v2/index.ts`
+  têm implementações espelhadas, sem teste de paridade. Qualquer alias novo
+  na UI pode divergir silenciosamente do worker.
+  Mitigação alvo: criar `src/test/templateRendererParity.test.ts` com casos
+  fixos cobrindo todos os aliases e variáveis canônicas, e replicar a mesma
+  bateria como fixture lida pelo worker em CI.
+
+- [ ] **Migrations não-reversíveis.**
+  As migrations da Onda 0 (`20260426_*`) e Onda 2.1 (`20260426_sequence_flow_edges.sql`)
+  são idempotentes mas não têm path de rollback. Se quebrar em prod, reversão
+  é manual.
+  Mitigação alvo: criar `supabase/migrations/down/<nome>.sql` para cada uma e
+  documentar o procedimento de rollback no README do diretório.
+
+- [ ] **`sequence_steps_v2.position` sem unique constraint.**
+  Worker em `supabase/functions/sequence-worker-v2/index.ts:211` usa
+  `seqSteps.find(s => s.position === enrollment.position)`. Se duas linhas
+  tiverem mesma position, comportamento é indefinido.
+  Mitigação alvo: adicionar `UNIQUE (sequence_id, position)` em
+  `sequence_steps_v2` (com migration de dedup antes) OU mudar o worker
+  para endereçar steps por id (e migrar `cadence_tracks.position` para
+  `cadence_tracks.current_step_id`).
