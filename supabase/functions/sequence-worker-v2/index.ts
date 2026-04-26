@@ -142,7 +142,7 @@ serve(async (req) => {
     }
 
     // ── 2. Batch-fetch sequences, steps, companies ───────────
-    const sequenceIds = [...new Set(enrollments.map((e: any) => e.sequence_id))];
+    const sequenceIds = [...new Set(enrollments.map((e: any) => e.sequence_id).filter(Boolean))];
     const companyIds = [
       ...new Set(
         enrollments
@@ -151,7 +151,7 @@ serve(async (req) => {
       ),
     ];
 
-    const [{ data: sequences }, { data: steps }, { data: companies }] =
+    const [{ data: sequences }, { data: steps }, { data: edges, error: edgesErr }, { data: companies }] =
       await Promise.all([
         supabase.from('sequences').select('*').in('id', sequenceIds),
         supabase
@@ -159,6 +159,10 @@ serve(async (req) => {
           .select('*')
           .in('sequence_id', sequenceIds)
           .order('position'),
+        supabase
+          .from('sequence_step_edges')
+          .select('sequence_id, source_step_id, target_step_id, source_handle')
+          .in('sequence_id', sequenceIds),
         companyIds.length > 0
           ? supabase.from('companies').select('id, name, domain, city, segment, custom_data').in('id', companyIds)
           : { data: [] },
@@ -169,6 +173,16 @@ serve(async (req) => {
     (steps ?? []).forEach((s: any) => {
       (stepsBySeq[s.sequence_id] ??= []).push(s);
     });
+    const stepsById = Object.fromEntries(
+      (steps ?? []).map((s: any) => [s.id, s]),
+    );
+    const edgesBySource: Record<string, any[]> = {};
+    if (edgesErr) {
+      console.warn('[sequence-worker-v2] sequence_step_edges unavailable; using linear fallback:', edgesErr.message);
+    }
+    (edges ?? []).forEach((edge: any) => {
+      (edgesBySource[edge.source_step_id] ??= []).push(edge);
+    });
     const seqById = Object.fromEntries(
       (sequences ?? []).map((s: any) => [s.id, s]),
     );
@@ -178,6 +192,16 @@ serve(async (req) => {
 
     let processed = 0;
     const now = new Date();
+
+    function nextPosition(currentStep: any, sourceHandle: string | null, fallback: number) {
+      const candidates = edgesBySource[currentStep.id] ?? [];
+      const edge =
+        candidates.find((item) => (item.source_handle ?? null) === sourceHandle)
+        ?? candidates.find((item) => !item.source_handle || item.source_handle === 'default')
+        ?? candidates[0];
+      const target = edge ? stepsById[edge.target_step_id] : null;
+      return typeof target?.position === 'number' ? target.position : fallback;
+    }
 
     // ── 3. Process each enrollment ───────────────────────────
     for (const enrollment of enrollments as any[]) {
@@ -263,7 +287,7 @@ serve(async (req) => {
         await supabase
           .from('cadence_tracks')
           .update({
-            position: currentStep.position + 1,
+            position: nextPosition(currentStep, null, currentStep.position + 1),
             last_step_at: now.toISOString(),
           })
           .eq('id', enrollment.id);
@@ -298,10 +322,10 @@ serve(async (req) => {
         // True → next position; False → skip one (position + 2)
         const truePos =
           (currentStep.config as any).if_true_step_position ??
-          currentStep.position + 1;
+          nextPosition(currentStep, 'true', currentStep.position + 1);
         const falsePos =
           (currentStep.config as any).if_false_step_position ??
-          currentStep.position + 2;
+          nextPosition(currentStep, 'false', currentStep.position + 2);
 
         await supabase.from('sequence_step_runs').insert({
           enrollment_id: enrollment.id,
@@ -414,7 +438,7 @@ serve(async (req) => {
       await supabase
         .from('cadence_tracks')
         .update({
-          position: currentStep.position + 1,
+          position: nextPosition(currentStep, null, currentStep.position + 1),
           last_step_at: now.toISOString(),
         })
         .eq('id', enrollment.id);
