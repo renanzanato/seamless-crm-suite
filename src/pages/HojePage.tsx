@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageErrorState } from "@/components/states/PageState";
 import { getDailyTasks, completeTask, skipTask, getABMStats, type DailyTask, type TaskType, type Urgency } from "@/services/abmService";
 import { formatDatePtBr, getOperationalCalendarInsights } from "@/lib/brCalendar";
 import { supabase } from "@/lib/supabase";
@@ -212,7 +213,7 @@ function HojePageContent() {
   const today = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
   const calendar = getOperationalCalendarInsights();
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: tasks = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ["daily-tasks"],
     queryFn: () => getDailyTasks(),
     refetchInterval: 60_000,
@@ -298,7 +299,14 @@ function HojePageContent() {
       <StatsBar />
 
       {/* Tasks */}
-      {isLoading ? (
+      {isError ? (
+        <PageErrorState
+          compact
+          title="Nao foi possivel carregar as tarefas"
+          description={(error as Error).message}
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
         </div>

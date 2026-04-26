@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Can } from "@/components/Can";
+import { PageErrorState } from "@/components/states/PageState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -296,14 +297,14 @@ export default function SequenciasPage() {
   const [contactId, setContactId] = useState("");
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
 
-  const { data: companies = [], isLoading: loadingCompanies } = useQuery({
+  const { data: companies = [], isLoading: loadingCompanies, isError: companiesError, error: companiesLoadError } = useQuery({
     queryKey: ["companies"],
     queryFn: () => getCompanies(),
   });
 
   const selectedCompany = companies.find((company) => company.id === companyId) ?? null;
 
-  const { data: contacts = [], isLoading: loadingContacts } = useQuery({
+  const { data: contacts = [], isLoading: loadingContacts, isError: contactsError, error: contactsLoadError } = useQuery({
     queryKey: ["contacts-by-company", companyId],
     queryFn: () => getContactsByCompany(companyId),
     enabled: !!companyId,
@@ -311,16 +312,23 @@ export default function SequenciasPage() {
 
   const selectedContact = contacts.find((contact) => contact.id === contactId) ?? null;
 
-  const { data: tracks = [], isLoading: loadingTracks } = useQuery({
+  const { data: tracks = [], isLoading: loadingTracks, isError: tracksError, error: tracksLoadError } = useQuery({
     queryKey: ["cadence-tracks"],
     queryFn: getCadenceTracks,
     refetchInterval: 60_000,
   });
 
-  const { data: sequences = [], isLoading: loadingSequences } = useQuery({
+  const { data: sequences = [], isLoading: loadingSequences, isError: sequencesError, error: sequencesLoadError } = useQuery({
     queryKey: ["sequences"],
     queryFn: listSequences,
   });
+
+  const pageError = [
+    companiesError ? companiesLoadError : null,
+    contactsError ? contactsLoadError : null,
+    tracksError ? tracksLoadError : null,
+    sequencesError ? sequencesLoadError : null,
+  ].find(Boolean) as Error | undefined;
 
   useEffect(() => {
     setContactId("");
@@ -417,6 +425,20 @@ export default function SequenciasPage() {
       </div>
 
       <div className="space-y-5">
+        {pageError && (
+          <PageErrorState
+            compact
+            title="Alguns dados de cadencia nao carregaram"
+            description={pageError.message}
+            onRetry={() => {
+              void queryClient.invalidateQueries({ queryKey: ["companies"] });
+              void queryClient.invalidateQueries({ queryKey: ["contacts-by-company", companyId] });
+              void queryClient.invalidateQueries({ queryKey: ["cadence-tracks"] });
+              void queryClient.invalidateQueries({ queryKey: ["sequences"] });
+            }}
+          />
+        )}
+
         <TrackStats tracks={tracks} />
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">

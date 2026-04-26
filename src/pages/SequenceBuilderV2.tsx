@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageErrorState } from '@/components/states/PageState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -112,13 +113,25 @@ export default function SequenceBuilderV2() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   // Load existing sequence
-  const { data: existingSequence } = useQuery({
+  const {
+    data: existingSequence,
+    isLoading: loadingSequence,
+    isError: sequenceError,
+    error: sequenceLoadError,
+    refetch: refetchSequence,
+  } = useQuery({
     queryKey: ['sequence', id],
     queryFn: () => getSequence(id!),
     enabled: !isNew,
   });
 
-  const { data: existingSteps } = useQuery({
+  const {
+    data: existingSteps,
+    isLoading: loadingSteps,
+    isError: stepsError,
+    error: stepsLoadError,
+    refetch: refetchSteps,
+  } = useQuery({
     queryKey: ['sequence-steps-v2', id],
     queryFn: () => getStepsV2(id!),
     enabled: !isNew,
@@ -251,6 +264,34 @@ export default function SequenceBuilderV2() {
     () => nodes.find((n) => n.id === selectedStepId),
     [nodes, selectedStepId],
   );
+
+  const loadError = sequenceError ? sequenceLoadError : stepsError ? stepsLoadError : null;
+
+  if (!isNew && loadError) {
+    return (
+      <DashboardLayout>
+        <PageErrorState
+          title="Nao foi possivel abrir a sequencia"
+          description={(loadError as Error).message}
+          onRetry={() => {
+            void refetchSequence();
+            void refetchSteps();
+          }}
+        />
+      </DashboardLayout>
+    );
+  }
+
+  if (!isNew && (loadingSequence || loadingSteps)) {
+    return (
+      <DashboardLayout>
+        <div className="flex h-[60vh] items-center justify-center text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Carregando sequencia...
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

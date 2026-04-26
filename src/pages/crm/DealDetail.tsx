@@ -20,6 +20,7 @@ import {
   User,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageErrorState } from '@/components/states/PageState';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { PageTransition } from '@/components/PageTransition';
 import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
@@ -97,7 +98,7 @@ export default function DealDetail() {
   const [callOpen, setCallOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
 
-  const { data: deal, isLoading, refetch } = useQuery({
+  const { data: deal, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['deal', id],
     queryFn: () => getDeal(id!),
     enabled: !!id,
@@ -194,6 +195,18 @@ export default function DealDetail() {
           <Skeleton className="h-96 rounded-xl" />
           <Skeleton className="h-80 rounded-xl" />
         </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <DashboardLayout>
+        <PageErrorState
+          title="Nao foi possivel carregar o deal"
+          description={(error as Error).message}
+          onRetry={() => void refetch()}
+        />
       </DashboardLayout>
     );
   }

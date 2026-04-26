@@ -30,6 +30,7 @@ import {
   AtSign,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageErrorState } from '@/components/states/PageState';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { PageTransition } from '@/components/PageTransition';
 import { ContactForm } from '@/components/crm/ContactForm';
@@ -184,7 +185,7 @@ export default function ContactDetail() {
   const [waterfallResult, setWaterfallResult] = useState<'not_found' | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const { data: contact, isLoading, refetch } = useQuery({
+  const { data: contact, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['contact', id],
     queryFn: () => getContact(id!),
     enabled: !!id,
@@ -372,6 +373,18 @@ export default function ContactDetail() {
             </CardContent>
           </Card>
         </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <DashboardLayout>
+        <PageErrorState
+          title="Nao foi possivel carregar o contato"
+          description={(error as Error).message}
+          onRetry={() => void refetch()}
+        />
       </DashboardLayout>
     );
   }

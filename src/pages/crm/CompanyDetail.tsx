@@ -9,6 +9,7 @@ import {
   Zap, Clock, AlertCircle, Pencil, StickyNote, Loader2, Briefcase,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { PageErrorState } from '@/components/states/PageState';
 import { Breadcrumbs } from '@/components/Breadcrumbs';
 import { PageTransition } from '@/components/PageTransition';
 import { Can } from '@/components/Can';
@@ -634,7 +635,7 @@ export default function CompanyDetail() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const { data: company, isLoading } = useQuery({
+  const { data: company, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['company', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -839,6 +840,18 @@ export default function CompanyDetail() {
       <DashboardLayout>
         <Skeleton className="h-8 w-48 mb-6" />
         <Skeleton className="h-32 w-full" />
+      </DashboardLayout>
+    );
+  }
+
+  if (isError) {
+    return (
+      <DashboardLayout>
+        <PageErrorState
+          title="Nao foi possivel carregar a empresa"
+          description={(error as Error).message}
+          onRetry={() => void refetch()}
+        />
       </DashboardLayout>
     );
   }

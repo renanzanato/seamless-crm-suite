@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageErrorState } from "@/components/states/PageState";
 import { GoalProgressBoard } from "@/components/dashboard/GoalProgressBoard";
 import { ExecutiveSnapshotGrid } from "@/components/dashboard/ExecutiveSnapshotGrid";
 import { PipelineStageBoard } from "@/components/dashboard/PipelineStageBoard";
@@ -30,7 +31,7 @@ export default function Index() {
   const [params, setParams] = useSearchParams();
   const activeView = params.get("view") ?? "overview";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["gtm-metrics"],
     queryFn: getGtmMetrics,
     refetchInterval: 60_000,
@@ -63,7 +64,15 @@ export default function Index() {
           <TabsTrigger value="sales" className="gap-1.5"><Briefcase className="h-4 w-4" /> Vendas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        {isError && (
+          <PageErrorState
+            title="Painel indisponivel"
+            description={(error as Error).message}
+            onRetry={() => void refetch()}
+          />
+        )}
+
+        {!isError && <TabsContent value="overview" className="space-y-6">
           {isLoading || !data ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
@@ -85,9 +94,9 @@ export default function Index() {
           {!isLoading && data && <ExecutiveSnapshotGrid stats={data.executive} />}
           {!isLoading && data && <GoalProgressBoard goals={data.goals} />}
           {!isLoading && data && <PipelineStageBoard stages={data.pipeline} />}
-        </TabsContent>
+        </TabsContent>}
 
-        <TabsContent value="gtm" className="space-y-6">
+        {!isError && <TabsContent value="gtm" className="space-y-6">
           {isLoading || !data ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
@@ -141,9 +150,9 @@ export default function Index() {
               <MetricGrid metrics={data.efficiency} />
             </>
           )}
-        </TabsContent>
+        </TabsContent>}
 
-        <TabsContent value="sales" className="space-y-6">
+        {!isError && <TabsContent value="sales" className="space-y-6">
           {isLoading || !data ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-xl" />)}
@@ -157,7 +166,7 @@ export default function Index() {
           )}
 
           {!isLoading && data && <PipelineStageBoard stages={data.pipeline} />}
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
     </DashboardLayout>
   );
