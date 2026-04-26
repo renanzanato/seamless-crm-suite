@@ -30,6 +30,8 @@ import {
   AtSign,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { PageTransition } from '@/components/PageTransition';
 import { ContactForm } from '@/components/crm/ContactForm';
 import { InlineEdit, type InlineEditValue } from '@/components/crm/InlineEdit';
 import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
@@ -418,14 +420,12 @@ export default function ContactDetail() {
 
   return (
     <DashboardLayout>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/crm/contatos')}
-        className="mb-4 -ml-2 h-8 gap-1.5 text-muted-foreground"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Voltar
-      </Button>
+      <PageTransition>
+      <Breadcrumbs items={[
+        { label: 'CRM' },
+        { label: 'Contatos', href: '/crm/contatos' },
+        { label: contact.name },
+      ]} />
 
       <div className="mb-4 flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm xl:flex-row xl:items-start xl:justify-between">
         <div className="flex min-w-0 items-start gap-4">
@@ -901,6 +901,7 @@ export default function ContactDetail() {
         onOpenChange={setDealOpen}
         defaultCompanyId={contact.company?.id ?? ''}
       />
+      </PageTransition>
     </DashboardLayout>
   );
 }

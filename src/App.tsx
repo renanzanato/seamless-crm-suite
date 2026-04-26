@@ -11,7 +11,6 @@ import Index from "./pages/Index.tsx";
 import PlaceholderPage from "./pages/PlaceholderPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import SequenciasPage from "./pages/SequenciasPage.tsx";
-import SequenciaBuilderPage from "./pages/SequenciaBuilderPage.tsx";
 import Contacts from "./pages/crm/Contacts.tsx";
 import Companies from "./pages/crm/Companies.tsx";
 import PipelinePage from "./pages/crm/PipelinePage.tsx";
@@ -21,6 +20,9 @@ import CompanyDetail from "./pages/crm/CompanyDetail.tsx";
 import ContactDetail from "./pages/crm/ContactDetail.tsx";
 import DealDetail from "./pages/crm/DealDetail.tsx";
 import MensagensPage from "./pages/MensagensPage.tsx";
+import Reports from "./pages/Reports.tsx";
+import Settings from "./pages/Settings.tsx";
+import SequenceBuilderV2 from "./pages/SequenceBuilderV2.tsx";
 
 const queryClient = new QueryClient();
 
@@ -39,8 +41,9 @@ const App = () => (
               <Route path="/dashboard" element={<Index />} />
               <Route path="/hoje" element={<HojePage />} />
               <Route path="/mensagens" element={<MensagensPage />} />
-              <Route path="/settings" element={<PlaceholderPage />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/help" element={<PlaceholderPage />} />
+              <Route path="/reports" element={<Reports />} />
 
               {/* CRM */}
               <Route path="/crm/contatos" element={<Contacts />} />
@@ -50,16 +53,12 @@ const App = () => (
               <Route path="/crm/negocios" element={<PipelinePage />} />
               <Route path="/crm/negocios/:id" element={<DealDetail />} />
 
-              {/* Funil */}
-              <Route path="/funil" element={<Navigate to="/crm/negocios?tab=kanban" replace />} />
-
               {/* Admin-only */}
               <Route element={<AdminRoute />}>
-                <Route path="/funis" element={<Navigate to="/crm/negocios?tab=estrutura" replace />} />
                 <Route path="/integracoes" element={<Integrations />} />
                 <Route path="/sequencias" element={<SequenciasPage />} />
-                <Route path="/sequencias/nova" element={<SequenciaBuilderPage />} />
-                <Route path="/sequencias/:id" element={<SequenciaBuilderPage />} />
+                <Route path="/sequencias-v2/nova" element={<SequenceBuilderV2 />} />
+                <Route path="/sequencias-v2/:id" element={<SequenceBuilderV2 />} />
               </Route>
             </Route>
 

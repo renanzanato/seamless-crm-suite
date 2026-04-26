@@ -78,6 +78,40 @@ function normalizeRow(row: ActivityRow): Activity {
   };
 }
 
+function cadenceUnenrollStatusForStage(stage: string) {
+  const normalized = stage.toLowerCase();
+  if (normalized.includes("reunião") || normalized.includes("reuniao")) return "meeting_booked";
+  if (
+    normalized.includes("proposta") ||
+    normalized.includes("fechamento") ||
+    normalized.includes("fechado")
+  ) {
+    return "proposal_sent";
+  }
+  return null;
+}
+
+async function unenrollActiveCadenceForStage(companyId: string | null | undefined, stage: string) {
+  if (!companyId) return;
+  const nextStatus = cadenceUnenrollStatusForStage(stage);
+  if (!nextStatus) return;
+
+  const completedAt = new Date().toISOString();
+  const { error: trackError } = await supabase
+    .from("cadence_tracks")
+    .update({ status: nextStatus, completed_at: completedAt })
+    .eq("company_id", companyId)
+    .eq("status", "active");
+  if (trackError) throw trackError;
+
+  const { error: companyError } = await supabase
+    .from("companies")
+    .update({ cadence_status: nextStatus })
+    .eq("id", companyId)
+    .eq("cadence_status", "active");
+  if (companyError) throw companyError;
+}
+
 export interface ActivitiesQueryOptions {
   /** Máximo de linhas a trazer. Default 200. */
   limit?: number;
@@ -247,6 +281,11 @@ export async function createStageChangeActivity(
     .single();
 
   if (error) throw error;
+  try {
+    await unenrollActiveCadenceForStage(input.companyId, input.toStage);
+  } catch (unenrollError) {
+    console.warn("[activitiesService] unenroll cadence on stage_change falhou:", unenrollError);
+  }
   return normalizeRow(data as unknown as ActivityRow);
 }
 

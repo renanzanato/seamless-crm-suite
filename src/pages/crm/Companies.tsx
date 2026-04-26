@@ -27,6 +27,7 @@ import {
   User,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageTransition } from "@/components/PageTransition";
 import { CompanyForm } from "@/components/crm/CompanyForm";
 import { Can } from "@/components/Can";
 import { Button } from "@/components/ui/button";
@@ -76,8 +77,29 @@ import type { BuyingSignal, Company, CompanyStatus } from "@/types";
 import { DEAL_STAGES } from "@/types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { ColumnSelector, type ColumnOption } from '@/components/lists/ColumnSelector';
+import { SavedLists } from '@/components/lists/SavedLists';
+import type { FilterGroup } from '@/components/lists/AdvancedFilters';
 
 const PAGE_SIZE = 25;
+
+const COMPANY_COLUMN_OPTIONS: ColumnOption[] = [
+  { key: 'name', label: 'Conta', defaultVisible: true },
+  { key: 'status', label: 'Status', defaultVisible: true },
+  { key: 'score', label: 'Score', defaultVisible: true },
+  { key: 'owner', label: 'Responsavel', defaultVisible: true },
+  { key: 'vgv', label: 'VGV projetado', defaultVisible: true },
+  { key: 'launch', label: 'Lancamento', defaultVisible: true },
+  { key: 'launch_count', label: 'Lanc. no ano', defaultVisible: true },
+  { key: 'city', label: 'Cidade', defaultVisible: false },
+  { key: 'segment', label: 'Segmento', defaultVisible: false },
+  { key: 'cnpj', label: 'CNPJ', defaultVisible: false },
+  { key: 'cadence', label: 'Cadencia', defaultVisible: false },
+  { key: 'media', label: 'Midia mensal', defaultVisible: false },
+  { key: 'actions', label: 'Acoes', defaultVisible: true },
+];
+
+const EMPTY_COMPANY_FILTERS: FilterGroup = { connector: 'AND', conditions: [] };
 
 const STATUS_LABELS: Record<CompanyStatus, { label: string; color: string }> = {
   new: { label: "Nova", color: "bg-muted text-muted-foreground" },
@@ -318,6 +340,10 @@ export default function Companies() {
   const [dealDialogOpen, setDealDialogOpen] = useState(false);
   const [dealFunnelId, setDealFunnelId] = useState<string>("");
   const [dealStage, setDealStage] = useState<string>(DEAL_STAGES[0]);
+  const [visibleCompanyCols, setVisibleCompanyCols] = useState<string[]>(
+    COMPANY_COLUMN_OPTIONS.filter((c) => c.defaultVisible !== false).map((c) => c.key),
+  );
+  const [savedFiltersState, setSavedFiltersState] = useState<FilterGroup>(EMPTY_COMPANY_FILTERS);
 
   const { data: filterOptions } = useQuery({
     queryKey: ["company-filter-options"],
@@ -478,6 +504,7 @@ export default function Companies() {
 
   return (
     <DashboardLayout>
+      <PageTransition>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -594,6 +621,24 @@ export default function Companies() {
         <Button type="button" variant="outline" size="icon" onClick={() => setAscending((prev) => !prev)}>
           <ArrowUpDown className="h-4 w-4" />
         </Button>
+
+        <ColumnSelector
+          storageKey="pipa-cols-companies"
+          columns={COMPANY_COLUMN_OPTIONS}
+          onChange={setVisibleCompanyCols}
+        />
+        {profile && (
+          <SavedLists
+            entity="companies"
+            ownerId={profile.id}
+            currentFilters={savedFiltersState}
+            currentColumns={visibleCompanyCols}
+            onLoad={(f, cols) => {
+              setSavedFiltersState(f);
+              if (cols) setVisibleCompanyCols(cols);
+            }}
+          />
+        )}
       </div>
 
       {selectedIds.length > 0 && (
@@ -993,6 +1038,7 @@ export default function Companies() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </PageTransition>
     </DashboardLayout>
   );
 }

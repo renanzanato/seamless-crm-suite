@@ -221,9 +221,14 @@ Depois disso, começa Onda 8+ (automação/AI).
   - [x] Phase 1E — `DealDetail` (criar se não existe) (ver [PHASE_1E_DONE.md](./PHASE_1E_DONE.md))
   - [x] Phase 1F — Quick actions (LogCallModal + CreateTaskModal + DealForm wired; TaskItem persiste status) (ver [PHASE_1F_DONE.md](./PHASE_1F_DONE.md))
   - [x] Phase 1G — Property inline edit (ver [PHASE_1G_DONE.md](./PHASE_1G_DONE.md))
-- [ ] Onda 2 — Lists robustas
-- [ ] Onda 3 — Pipeline Kanban
-- [ ] Onda 4 — Today / Inbox
-- [ ] Onda 5 — Sequences
-- [ ] Onda 6 — Reports
-- [ ] Onda 7 — Settings no-code
+- [x] Onda 2 — Lists robustas (ver [ONDA_2_DONE.md](./ONDA_2_DONE.md))
+- [x] Onda 3 — Pipeline Kanban (ver [ONDA_3_DONE.md](./ONDA_3_DONE.md))
+- [x] Onda 4 — Today / Inbox (ver [ONDA_4_DONE.md](./ONDA_4_DONE.md))
+- [x] Onda 5 — Sequences (ver [ONDA_5_DONE.md](./ONDA_5_DONE.md))
+- [x] Onda 6 — Reports (ver [ONDA_6_DONE.md](./ONDA_6_DONE.md))
+- [x] Onda 7 — Settings no-code (ver [ONDA_7_DONE.md](./ONDA_7_DONE.md))
+
+- [x] **Onda 8 — Sequences Apollo-style** (ver [ONDA_8_DONE.md](./ONDA_8_DONE.md))
+- [x] **Onda 9 — Email integration real** (ver [ONDA_9_DONE.md](./ONDA_9_DONE.md))
+- [x] **Onda 10 — Notifications + Mentions** (ver [ONDA_10_DONE.md](./ONDA_10_DONE.md))
+- [x] **Onda 11 — Global Search + Polish** (ver [ONDA_11_DONE.md](./ONDA_11_DONE.md))

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+﻿import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -7,24 +7,27 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
+import { toast } from 'sonner';
 import { StageColumn } from './StageColumn';
-import { KanbanCard } from './KanbanCard';
-import { moveDeal } from '@/services/funnelService';
+import { DealCard } from './DealCard';
+import { createStageChangeActivity } from '@/services/activitiesService';
 import { useAuth } from '@/hooks/useAuth';
-import type { Stage, Deal } from '@/services/funnelService';
+import { supabase } from '@/lib/supabase';
+import type { Deal } from '@/types';
+import { DEAL_STAGES } from '@/types';
 
 interface KanbanBoardProps {
-  stages: Stage[];
   deals: Deal[];
   onDealsChange: (deals: Deal[]) => void;
+  onDealMoved?: () => void;
 }
 
-export function KanbanBoard({ stages, deals, onDealsChange }: KanbanBoardProps) {
-  const { session } = useAuth();
+export function KanbanBoard({ deals, onDealsChange, onDealMoved }: KanbanBoardProps) {
+  const { session, profile } = useAuth();
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   const handleDragStart = useCallback(
@@ -32,7 +35,7 @@ export function KanbanBoard({ stages, deals, onDealsChange }: KanbanBoardProps) 
       const deal = deals.find((d) => d.id === event.active.id);
       setActiveDeal(deal ?? null);
     },
-    [deals]
+    [deals],
   );
 
   const handleDragEnd = useCallback(
@@ -44,28 +47,43 @@ export function KanbanBoard({ stages, deals, onDealsChange }: KanbanBoardProps) 
       const draggedDeal = deals.find((d) => d.id === active.id);
       if (!draggedDeal) return;
 
-      const toStageId = over.id as string;
-      if (draggedDeal.stage_id === toStageId) return;
+      const toStage = over.id as string;
+      const fromStage = draggedDeal.stage;
+      if (fromStage === toStage) return;
 
       // Optimistic update
       const updated = deals.map((d) =>
-        d.id === draggedDeal.id ? { ...d, stage_id: toStageId } : d
+        d.id === draggedDeal.id ? { ...d, stage: toStage } : d,
       );
       onDealsChange(updated);
 
       try {
-        await moveDeal(
-          draggedDeal.id,
-          draggedDeal.stage_id,
-          toStageId,
-          session?.user.id ?? ''
-        );
-      } catch {
-        // Revert on error
+        // Update deal stage in DB
+        const { error: updateErr } = await supabase
+          .from('deals')
+          .update({ stage: toStage })
+          .eq('id', draggedDeal.id);
+        if (updateErr) throw updateErr;
+
+        // Create stage_change activity
+        await createStageChangeActivity({
+          dealId: draggedDeal.id,
+          contactId: draggedDeal.contact_id ?? undefined,
+          companyId: draggedDeal.company_id ?? undefined,
+          dealTitle: draggedDeal.title,
+          fromStage,
+          toStage,
+          createdBy: session?.user.id ?? profile?.id ?? undefined,
+        });
+
+        onDealMoved?.();
+      } catch (err) {
+        // Rollback
         onDealsChange(deals);
+        toast.error('Erro ao mover deal: ' + (err as Error).message);
       }
     },
-    [deals, onDealsChange, session]
+    [deals, onDealsChange, onDealMoved, session, profile],
   );
 
   return (
@@ -75,16 +93,17 @@ export function KanbanBoard({ stages, deals, onDealsChange }: KanbanBoardProps) 
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4 min-h-[400px]">
-        {stages.map((stage) => (
+        {DEAL_STAGES.map((stage) => (
           <StageColumn
-            key={stage.id}
-            stage={stage}
-            deals={deals.filter((d) => d.stage_id === stage.id)}
+            key={stage}
+            stageName={stage}
+            stageId={stage}
+            deals={deals.filter((d) => d.stage === stage)}
           />
         ))}
       </div>
       <DragOverlay dropAnimation={null}>
-        {activeDeal ? <KanbanCard deal={activeDeal} /> : null}
+        {activeDeal ? <DealCard deal={activeDeal} /> : null}
       </DragOverlay>
     </DndContext>
   );

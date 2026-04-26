@@ -1,23 +1,16 @@
 -- ============================================================
--- Pipa Driven — Contact lifecycle_stage
+-- Pipa Driven - Contact lifecycle_stage
 -- ============================================================
--- Elimina a confusao entre "base", "leads" e "contatos" — todas sao
--- a mesma tabela `contacts` com diferentes valores de lifecycle_stage.
---
---   subscriber    — entrou na base sem contexto (ex.: newsletter)
---   lead          — novo sem qualificacao (default)
---   mql           — demonstrou interesse (marketing qualified)
---   sql           — qualificado pra venda (sales qualified)
---   opportunity   — em negociacao ativa (tem deal aberto)
---   customer      — fechou
---   evangelist    — cliente indicando outros
---   disqualified  — descartado
+-- "Base", "lead", "MQL" and "SQL" are filters over contacts,
+-- not separate business objects.
 -- ============================================================
 
 ALTER TABLE public.contacts
-  ADD COLUMN IF NOT EXISTS lifecycle_stage text DEFAULT 'lead';
+  ADD COLUMN IF NOT EXISTS lifecycle_stage text;
 
--- Limpa qualquer CHECK antigo em lifecycle_stage e adiciona o novo.
+ALTER TABLE public.contacts
+  ALTER COLUMN lifecycle_stage SET DEFAULT 'lead';
+
 DO $$
 DECLARE
   r record;
@@ -33,7 +26,99 @@ BEGIN
   LOOP
     EXECUTE format('ALTER TABLE public.contacts DROP CONSTRAINT %I', r.conname);
   END LOOP;
-END $$;
+END;
+$$;
+
+UPDATE public.contacts
+   SET lifecycle_stage = 'lead'
+ WHERE lifecycle_stage IS NULL
+    OR BTRIM(lifecycle_stage) = ''
+    OR lifecycle_stage NOT IN (
+      'subscriber', 'lead', 'mql', 'sql',
+      'opportunity', 'customer', 'evangelist', 'disqualified'
+    );
+
+-- Customer / opportunity backfill from current deal stages. Dynamic SQL
+-- keeps the migration safe if an older database is missing stages/deals.
+DO $$
+BEGIN
+  IF to_regclass('public.deals') IS NULL OR to_regclass('public.stages') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE $sql$
+    UPDATE public.contacts c
+       SET lifecycle_stage = 'customer'
+      FROM public.deals d
+      JOIN public.stages s ON s.id::text = NULLIF(to_jsonb(d)->>'stage_id', '')
+     WHERE NULLIF(to_jsonb(d)->>'contact_id', '') = c.id::text
+       AND (
+         s.name ILIKE '%ganho%'
+         OR s.name ILIKE '%won%'
+         OR s.name ILIKE '%fechamento%'
+       )
+       AND c.lifecycle_stage IN ('lead', 'mql', 'sql', 'opportunity')
+  $sql$;
+
+  EXECUTE $sql$
+    UPDATE public.contacts c
+       SET lifecycle_stage = 'opportunity'
+      FROM public.deals d
+      JOIN public.stages s ON s.id::text = NULLIF(to_jsonb(d)->>'stage_id', '')
+     WHERE NULLIF(to_jsonb(d)->>'contact_id', '') = c.id::text
+       AND s.name NOT ILIKE '%ganho%'
+       AND s.name NOT ILIKE '%won%'
+       AND s.name NOT ILIKE '%perdido%'
+       AND s.name NOT ILIKE '%lost%'
+       AND c.lifecycle_stage IN ('lead', 'mql', 'sql')
+  $sql$;
+END;
+$$;
+
+-- SQL backfill from existing interactions, when present.
+DO $$
+BEGIN
+  IF to_regclass('public.interactions') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE $sql$
+    UPDATE public.contacts c
+       SET lifecycle_stage = 'sql'
+     WHERE c.lifecycle_stage = 'lead'
+       AND EXISTS (
+         SELECT 1
+           FROM public.interactions i
+          WHERE NULLIF(to_jsonb(i)->>'contact_id', '') = c.id::text
+       )
+  $sql$;
+END;
+$$;
+
+-- SQL backfill from WhatsApp conversations, when present.
+DO $$
+BEGIN
+  IF to_regclass('public.whatsapp_conversations') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE $sql$
+    UPDATE public.contacts c
+       SET lifecycle_stage = 'sql'
+     WHERE c.lifecycle_stage = 'lead'
+       AND EXISTS (
+         SELECT 1
+           FROM public.whatsapp_conversations wc
+          WHERE NULLIF(to_jsonb(wc)->>'contact_id', '') = c.id::text
+       )
+  $sql$;
+END;
+$$;
+
+UPDATE public.contacts
+   SET lifecycle_stage = 'lead'
+ WHERE lifecycle_stage IS NULL
+    OR BTRIM(lifecycle_stage) = '';
 
 ALTER TABLE public.contacts
   ADD CONSTRAINT contacts_lifecycle_stage_check
@@ -42,43 +127,8 @@ ALTER TABLE public.contacts
     'opportunity', 'customer', 'evangelist', 'disqualified'
   ));
 
--- Backfill: inferir stage baseado no estado existente do contato.
---   - contato com deal fechado ganho -> customer
---   - contato com deal aberto -> opportunity
---   - contato com deal perdido -> disqualified (soft; rep pode reativar)
---   - contato sem deal mas com interacao -> sql
---   - caso contrario -> lead (default ja aplicado)
+ALTER TABLE public.contacts
+  ALTER COLUMN lifecycle_stage SET NOT NULL;
 
--- Customer: tem deal com stage cujo nome contem "Ganho" ou "Won"
-UPDATE public.contacts c
-   SET lifecycle_stage = 'customer'
-  FROM public.deals d
-  JOIN public.stages s ON s.id = d.stage_id
- WHERE d.contact_id = c.id
-   AND (s.name ILIKE '%ganho%' OR s.name ILIKE '%won%' OR s.name ILIKE '%fechamento%')
-   AND c.lifecycle_stage = 'lead';
-
--- Opportunity: tem qualquer deal nao fechado (stage ativo)
-UPDATE public.contacts c
-   SET lifecycle_stage = 'opportunity'
-  FROM public.deals d
-  JOIN public.stages s ON s.id = d.stage_id
- WHERE d.contact_id = c.id
-   AND s.name NOT ILIKE '%ganho%'
-   AND s.name NOT ILIKE '%won%'
-   AND s.name NOT ILIKE '%perdido%'
-   AND s.name NOT ILIKE '%lost%'
-   AND c.lifecycle_stage = 'lead';
-
--- SQL: sem deal mas com ao menos uma interaction/activity
-UPDATE public.contacts c
-   SET lifecycle_stage = 'sql'
- WHERE c.lifecycle_stage = 'lead'
-   AND (
-     EXISTS (SELECT 1 FROM public.interactions i WHERE i.contact_id = c.id)
-     OR EXISTS (SELECT 1 FROM public.whatsapp_conversations wc WHERE wc.contact_id = c.id)
-   );
-
--- Index pro filtro da listagem
 CREATE INDEX IF NOT EXISTS idx_contacts_lifecycle_stage
   ON public.contacts (lifecycle_stage);

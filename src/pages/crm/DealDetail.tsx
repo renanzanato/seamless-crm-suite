@@ -20,6 +20,8 @@ import {
   User,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { PageTransition } from '@/components/PageTransition';
 import { ActivityTimeline } from '@/components/activities/ActivityTimeline';
 import { LogCallModal } from '@/components/activities/LogCallModal';
 import { CreateTaskModal } from '@/components/activities/CreateTaskModal';
@@ -226,14 +228,12 @@ export default function DealDetail() {
 
   return (
     <DashboardLayout>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate('/crm/negocios')}
-        className="mb-4 -ml-2 h-8 gap-1.5 text-muted-foreground"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Voltar
-      </Button>
+      <PageTransition>
+      <Breadcrumbs items={[
+        { label: 'CRM' },
+        { label: 'Pipeline', href: '/crm/negocios' },
+        { label: deal.title },
+      ]} />
 
       <div className="mb-4 flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm xl:flex-row xl:items-start xl:justify-between">
         <div className="flex min-w-0 items-start gap-4">
@@ -537,6 +537,7 @@ export default function DealDetail() {
         createdBy={actorId}
         invalidateKey={['activities', 'deal', deal.id]}
       />
+      </PageTransition>
     </DashboardLayout>
   );
 }

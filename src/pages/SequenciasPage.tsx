@@ -3,14 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Building2,
-  CalendarDays,
   CheckCircle2,
   Clock,
-  Linkedin,
+  Mail,
   MessageSquare,
+  Pause,
   Phone,
+  Play,
   Plus,
+  RefreshCw,
   Sparkles,
+  TrendingUp,
   Users,
   Workflow,
 } from "lucide-react";
@@ -20,7 +23,6 @@ import { Can } from "@/components/Can";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -29,136 +31,242 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getCompanies, getContactsByCompany } from "@/services/crmService";
 import { listSequences } from "@/services/sequencesService";
-import { startCadenceForContacts } from "@/services/abmService";
+import {
+  getCadenceTracks,
+  runSequenceWorker,
+  setCadenceTrackStatus,
+  startCadenceForContacts,
+  type CadenceTrack,
+  type CadenceTrackStatus,
+} from "@/services/abmService";
 import { inferPersonaFromRole, PERSONA_PLAYBOOK, PIPA_21_DAY_CADENCE } from "@/lib/pipaGtm";
 import type { Contact, Sequence } from "@/types";
 
 const CHANNEL_ICON = {
   whatsapp: MessageSquare,
-  linkedin: Linkedin,
+  linkedin: Users,
   phone: Phone,
-  email: MessageSquare,
+  email: Mail,
 };
 
-function ContactSelector({
-  contacts,
-  selectedIds,
-  onToggle,
+const STATUS_LABEL: Record<CadenceTrackStatus, string> = {
+  pending: "Pendente",
+  done: "Feita",
+  skipped: "Pulada",
+  replied: "Respondeu",
+  active: "Ativa",
+  paused: "Pausada",
+  completed: "Completa",
+  meeting_booked: "Reuniao marcada",
+  proposal_sent: "Proposta enviada",
+  won: "Ganha",
+  lost: "Perdida",
+  errored: "Erro",
+};
+
+const CONVERTED_STATUSES = new Set<CadenceTrackStatus>(["meeting_booked", "proposal_sent", "won"]);
+const DONE_STATUSES = new Set<CadenceTrackStatus>([
+  "completed",
+  "meeting_booked",
+  "proposal_sent",
+  "won",
+  "lost",
+]);
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function getStatusVariant(status: CadenceTrackStatus): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "active") return "default";
+  if (status === "errored" || status === "lost") return "destructive";
+  if (status === "paused") return "secondary";
+  return "outline";
+}
+
+function getNextStep(track: CadenceTrack) {
+  const currentDay = Math.max(track.cadence_day ?? 1, 1);
+  return PIPA_21_DAY_CADENCE
+    .filter((step) => step.personas.includes(track.persona_type) && step.day >= currentDay)
+    .sort((a, b) => a.day - b.day)[0] ?? null;
+}
+
+function TrackStats({ tracks }: { tracks: CadenceTrack[] }) {
+  const total = tracks.length;
+  const active = tracks.filter((track) => track.status === "active").length;
+  const completed = tracks.filter((track) => DONE_STATUSES.has(track.status)).length;
+  const converted = tracks.filter((track) => CONVERTED_STATUSES.has(track.status)).length;
+  const conversionRate = total ? Math.round((converted / total) * 100) : 0;
+
+  const cards = [
+    { label: "Ativas", value: active, icon: Play, tone: "text-primary" },
+    { label: "Completadas", value: completed, icon: CheckCircle2, tone: "text-green-600" },
+    { label: "Conversao", value: `${conversionRate}%`, icon: TrendingUp, tone: "text-emerald-600" },
+    { label: "Total", value: total, icon: Workflow, tone: "text-muted-foreground" },
+  ];
+
+  return (
+    <div className="grid gap-3 md:grid-cols-4">
+      {cards.map(({ label, value, icon: Icon, tone }) => (
+        <Card key={label}>
+          <CardContent className="flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+              <p className="mt-1 text-2xl font-semibold">{value}</p>
+            </div>
+            <Icon className={`h-5 w-5 ${tone}`} />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TracksTable({
+  tracks,
+  isLoading,
+  onToggleStatus,
+  pendingTrackId,
 }: {
-  contacts: Contact[];
-  selectedIds: string[];
-  onToggle: (id: string) => void;
+  tracks: CadenceTrack[];
+  isLoading: boolean;
+  onToggleStatus: (track: CadenceTrack) => void;
+  pendingTrackId: string | null;
 }) {
-  if (contacts.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-        <Users className="mx-auto mb-2 h-8 w-8 opacity-40" />
-        <p className="text-sm">Nenhuma pessoa cadastrada para esta conta.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-2 md:grid-cols-2">
-      {contacts.map((contact) => {
-        const persona = inferPersonaFromRole(contact.role);
-        const playbook = PERSONA_PLAYBOOK[persona];
-        const checked = selectedIds.includes(contact.id);
-        return (
-          <button
-            key={contact.id}
-            type="button"
-            onClick={() => onToggle(contact.id)}
-            className={`rounded-xl border bg-card p-3 text-left transition-colors hover:bg-muted/40 ${checked ? "border-primary bg-primary/5" : ""}`}
-          >
-            <div className="flex items-start gap-3">
-              <Checkbox checked={checked} className="mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold">{contact.name}</p>
-                  <Badge variant="outline">{playbook.label}</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{contact.role || "Cargo nao informado"}</p>
-                <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{playbook.pain}</p>
-              </div>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function CadencePreview() {
-  return (
-    <div className="space-y-2">
-      {PIPA_21_DAY_CADENCE.map((step) => {
-        const Icon = CHANNEL_ICON[step.channel];
-        return (
-          <div key={`${step.day}-${step.label}-${step.channel}`} className="flex items-start gap-3 rounded-lg border bg-card p-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">Dia {step.day}</Badge>
-                <Badge variant="outline">Bloco {step.block}</Badge>
-                <p className="text-sm font-medium">{step.label}</p>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {step.personas.map((persona) => PERSONA_PLAYBOOK[persona].label).join(", ")}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function SequenceLibrary({ sequences, isLoading }: { sequences: Sequence[]; isLoading: boolean }) {
   if (isLoading) {
     return (
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} className="h-32 rounded-xl" />
+      <div className="space-y-2">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <Skeleton key={index} className="h-14 rounded-lg" />
         ))}
       </div>
     );
   }
 
-  if (sequences.length === 0) {
+  if (tracks.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
+      <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
         <Workflow className="mx-auto mb-2 h-8 w-8 opacity-40" />
-        <p className="text-sm">Nenhum template customizado criado.</p>
+        <p className="text-sm">Nenhuma cadencia enrolada ainda.</p>
       </div>
     );
   }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Empresa</TableHead>
+          <TableHead>Contato</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Dia</TableHead>
+          <TableHead>Proxima acao</TableHead>
+          <TableHead className="w-28 text-right">Acoes</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {tracks.map((track) => {
+          const nextStep = getNextStep(track);
+          const Icon = nextStep ? CHANNEL_ICON[nextStep.channel] : CheckCircle2;
+          const canToggle = track.status === "active" || track.status === "paused";
+          return (
+            <TableRow key={track.id}>
+              <TableCell>
+                <div className="font-medium">{track.company?.name ?? "Conta sem nome"}</div>
+                <div className="text-xs text-muted-foreground">Enrolled {formatDate(track.enrolled_at ?? track.created_at)}</div>
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">{track.contact?.name ?? "Sem contato"}</div>
+                <div className="text-xs text-muted-foreground">
+                  {PERSONA_PLAYBOOK[track.persona_type]?.label ?? track.persona_type}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant={getStatusVariant(track.status)}>{STATUS_LABEL[track.status] ?? track.status}</Badge>
+              </TableCell>
+              <TableCell>
+                <span className="font-medium">{track.cadence_day ?? 1}</span>
+                <span className="text-xs text-muted-foreground"> / 21</span>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Icon className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-medium">{nextStep?.label ?? "Cadencia concluida"}</p>
+                    {nextStep && (
+                      <p className="text-xs text-muted-foreground">
+                        Dia {nextStep.day} · Bloco {nextStep.block} · {nextStep.channel}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!canToggle || pendingTrackId === track.id}
+                  onClick={() => onToggleStatus(track)}
+                >
+                  {track.status === "active" ? (
+                    <>
+                      <Pause className="h-3.5 w-3.5" /> Pausar
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3.5 w-3.5" /> Retomar
+                    </>
+                  )}
+                </Button>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+}
+
+function SequenceLibrary({ sequences, isLoading }: { sequences: Sequence[]; isLoading: boolean }) {
+  if (isLoading) return <Skeleton className="h-28 rounded-xl" />;
 
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {sequences.map((sequence) => (
         <Card key={sequence.id}>
           <CardContent className="p-4">
-            <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold">{sequence.name}</p>
-                <p className="text-xs text-muted-foreground">{sequence.steps?.length ?? 0} steps</p>
+                <p className="mt-1 text-xs text-muted-foreground">{sequence.steps?.length ?? 0} steps</p>
               </div>
               <Badge variant={sequence.active ? "default" : "secondary"}>
                 {sequence.active ? "Ativa" : "Inativa"}
               </Badge>
             </div>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>{sequence.funnel?.name ?? "Sem funil"}</p>
-              <p>{sequence.stage?.name ?? "Sem estagio"}</p>
-            </div>
           </CardContent>
         </Card>
       ))}
+      {sequences.length === 0 && (
+        <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground md:col-span-2 xl:col-span-3">
+          <Workflow className="mx-auto mb-2 h-8 w-8 opacity-40" />
+          <p className="text-sm">Nenhum template customizado criado.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -167,7 +275,8 @@ export default function SequenciasPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [companyId, setCompanyId] = useState("");
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [contactId, setContactId] = useState("");
+  const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery({
     queryKey: ["companies"],
@@ -182,46 +291,81 @@ export default function SequenciasPage() {
     enabled: !!companyId,
   });
 
+  const selectedContact = contacts.find((contact) => contact.id === contactId) ?? null;
+
+  const { data: tracks = [], isLoading: loadingTracks } = useQuery({
+    queryKey: ["cadence-tracks"],
+    queryFn: getCadenceTracks,
+    refetchInterval: 60_000,
+  });
+
   const { data: sequences = [], isLoading: loadingSequences } = useQuery({
     queryKey: ["sequences"],
     queryFn: listSequences,
   });
 
   useEffect(() => {
-    setSelectedContactIds([]);
+    setContactId("");
   }, [companyId]);
 
-  const selectedContacts = useMemo(
-    () => contacts.filter((contact) => selectedContactIds.includes(contact.id)),
-    [contacts, selectedContactIds],
-  );
+  const contactsWithPersona = useMemo(() => {
+    return contacts.map((contact) => ({
+      contact,
+      persona: inferPersonaFromRole(contact.role),
+    }));
+  }, [contacts]);
 
-  const startMutation = useMutation({
-    mutationFn: () =>
-      startCadenceForContacts({
-        companyId,
-        companyName: selectedCompany?.name ?? "",
-        contacts: selectedContacts.map((contact) => ({
-          id: contact.id,
-          name: contact.name,
-          role: contact.role,
-        })),
-      }),
-    onSuccess: (createdTasks) => {
-      queryClient.invalidateQueries({ queryKey: ["daily-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["abm-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["companies"] });
-      toast.success(`Sequencia iniciada com ${createdTasks} acoes.`);
-      navigate("/hoje");
+  const refreshSequences = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["cadence-tracks"] }),
+      queryClient.invalidateQueries({ queryKey: ["daily-tasks"] }),
+      queryClient.invalidateQueries({ queryKey: ["abm-stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["companies"] }),
+    ]);
+
+  const enrollMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedCompany || !selectedContact) throw new Error("Selecione empresa e contato.");
+      return startCadenceForContacts({
+        companyId: selectedCompany.id,
+        companyName: selectedCompany.name,
+        contacts: [{
+          id: selectedContact.id,
+          name: selectedContact.name,
+          role: selectedContact.role,
+        }],
+      });
+    },
+    onSuccess: async (createdTasks) => {
+      await refreshSequences();
+      setContactId("");
+      toast.success(`Enroll criado. ${createdTasks} tarefa(s) geradas para hoje.`);
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  function toggleContact(id: string) {
-    setSelectedContactIds((prev) =>
-      prev.includes(id) ? prev.filter((contactId) => contactId !== id) : [...prev, id],
-    );
-  }
+  const statusMutation = useMutation({
+    mutationFn: async (track: CadenceTrack) => {
+      setPendingTrackId(track.id);
+      const next = track.status === "active" ? "paused" : "active";
+      await setCadenceTrackStatus(track.id, next);
+    },
+    onSuccess: async () => {
+      await refreshSequences();
+      toast.success("Cadencia atualizada.");
+    },
+    onError: (err: Error) => toast.error(err.message),
+    onSettled: () => setPendingTrackId(null),
+  });
+
+  const workerMutation = useMutation({
+    mutationFn: runSequenceWorker,
+    onSuccess: async () => {
+      await refreshSequences();
+      toast.success("Worker executado.");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <DashboardLayout>
@@ -232,155 +376,152 @@ export default function SequenciasPage() {
             <h1 className="text-2xl font-bold">Sequencias</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cadencias ABM por conta, com multiplas pessoas e execucao no Comando do Dia.
+            Cadencias ativas, tarefas geradas pelo worker e conversao por conta.
           </p>
         </div>
-        <Can admin>
-          <Button onClick={() => navigate("/sequencias/nova")} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo template
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => workerMutation.mutate()}
+            disabled={workerMutation.isPending}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${workerMutation.isPending ? "animate-spin" : ""}`} />
+            Rodar worker
           </Button>
-        </Can>
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="space-y-5">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Building2 className="h-4 w-4 text-primary" />
-                Conta
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Select value={companyId || "__none__"} onValueChange={(value) => setCompanyId(value === "__none__" ? "" : value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma conta" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione uma conta</SelectItem>
-                  {loadingCompanies ? (
-                    <SelectItem value="__loading__" disabled>
-                      Carregando contas...
-                    </SelectItem>
-                  ) : (
-                    companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-3">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Users className="h-4 w-4 text-primary" />
-                  Pessoas da conta
-                </CardTitle>
-                <Badge variant={selectedContactIds.length >= 2 ? "default" : "secondary"}>
-                  {selectedContactIds.length} selecionadas
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {!companyId ? (
-                <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-                  <Building2 className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                  <p className="text-sm">Selecione uma conta para carregar as pessoas.</p>
-                </div>
-              ) : loadingContacts ? (
-                <div className="grid gap-2 md:grid-cols-2">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <Skeleton key={index} className="h-24 rounded-xl" />
-                  ))}
-                </div>
-              ) : (
-                <ContactSelector contacts={contacts} selectedIds={selectedContactIds} onToggle={toggleContact} />
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold">Pronto para iniciar</p>
-              <p className="text-sm text-muted-foreground">
-                Conta + pelo menos 2 pessoas geram tarefas nos dias 1, 3, 4, 5, 8, 12, 15 e 21.
-              </p>
-            </div>
-            <Button
-              disabled={!companyId || selectedContactIds.length < 2 || startMutation.isPending}
-              onClick={() => startMutation.mutate()}
-              className="gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              {startMutation.isPending ? "Iniciando..." : "Iniciar sequencia"}
+          <Can admin>
+            <Button onClick={() => navigate("/sequencias-v2/nova")} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo template
             </Button>
-          </div>
-
-          <section className="space-y-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Cadencia padrao Pipa
-              </h2>
-            </div>
-            <CadencePreview />
-          </section>
-        </section>
-
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                Regra operacional
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p className="rounded-lg bg-muted/40 p-3">Sequencia sempre nasce de uma conta.</p>
-              <p className="rounded-lg bg-muted/40 p-3">A cadencia precisa de pessoas no plural para ser multipersona.</p>
-              <p className="rounded-lg bg-muted/40 p-3">As tarefas entram no Comando do Dia com mensagem personalizada.</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4 text-primary" />
-                Ritmo GTM
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2">
-              {[
-                ["50", "contas/semana"],
-                ["7", "dias Fase 0"],
-                ["21", "dias cadencia"],
-                ["4", "contratos/mes"],
-              ].map(([value, label]) => (
-                <div key={label} className="rounded-lg border bg-muted/30 p-3">
-                  <p className="text-xl font-bold">{value}</p>
-                  <p className="text-[11px] text-muted-foreground">{label}</p>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </aside>
+          </Can>
+        </div>
       </div>
 
-      <section className="mt-8 space-y-3">
-        <div className="flex items-center gap-2">
-          <Workflow className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Templates customizados
-          </h2>
+      <div className="space-y-5">
+        <TrackStats tracks={tracks} />
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Workflow className="h-4 w-4 text-primary" />
+                Cadencias enroladas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TracksTable
+                tracks={tracks}
+                isLoading={loadingTracks}
+                pendingTrackId={pendingTrackId}
+                onToggleStatus={(track) => statusMutation.mutate(track)}
+              />
+            </CardContent>
+          </Card>
+
+          <aside className="space-y-5">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Enroll
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Select value={companyId || "__none__"} onValueChange={(value) => setCompanyId(value === "__none__" ? "" : value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Selecione uma empresa</SelectItem>
+                    {loadingCompanies ? (
+                      <SelectItem value="__loading__" disabled>Carregando...</SelectItem>
+                    ) : (
+                      companies.map((company) => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={contactId || "__none__"}
+                  onValueChange={(value) => setContactId(value === "__none__" ? "" : value)}
+                  disabled={!companyId || loadingContacts}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Contato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Selecione um contato</SelectItem>
+                    {contactsWithPersona.map(({ contact, persona }) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name} · {PERSONA_PLAYBOOK[persona].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {selectedContact && (
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">{selectedContact.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {selectedContact.role || "Cargo nao informado"}
+                    </p>
+                  </div>
+                )}
+
+                <Button
+                  className="w-full gap-2"
+                  disabled={!selectedCompany || !selectedContact || enrollMutation.isPending}
+                  onClick={() => enrollMutation.mutate()}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {enrollMutation.isPending ? "Enrolando..." : "Enroll"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Clock className="h-4 w-4 text-primary" />
+                  PIPA 21 dias
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {PIPA_21_DAY_CADENCE.map((step) => {
+                  const Icon = CHANNEL_ICON[step.channel];
+                  return (
+                    <div key={`${step.day}-${step.taskType}-${step.label}`} className="flex gap-3 rounded-lg border bg-background p-3">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <div>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="outline">Dia {step.day}</Badge>
+                          <Badge variant="outline">Bloco {step.block}</Badge>
+                        </div>
+                        <p className="mt-1 text-sm font-medium">{step.label}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </aside>
         </div>
-        <SequenceLibrary sequences={sequences} isLoading={loadingSequences} />
-      </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-primary" />
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Templates customizados
+            </h2>
+          </div>
+          <SequenceLibrary sequences={sequences} isLoading={loadingSequences} />
+        </section>
+      </div>
     </DashboardLayout>
   );
 }

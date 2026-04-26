@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   Settings,
   HelpCircle,
-  GitBranch,
   ChevronLeft,
   ChevronRight,
   Triangle,
@@ -15,15 +14,19 @@ import {
   Briefcase,
   Zap,
   Workflow,
+  BarChart3,
   MessageSquare,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from '@tanstack/react-query';
+import { getInboxCount } from '@/services/inboxService';
 
 interface NavItem {
   title: string;
   url: string;
   icon: React.ElementType;
   adminOnly?: boolean;
+  badge?: number;
 }
 
 interface NavSection {
@@ -46,12 +49,12 @@ const navSections: NavSection[] = [
       { title: "Contatos",  url: "/crm/contatos",  icon: Users },
       { title: "Empresas",  url: "/crm/empresas",  icon: Building2 },
       { title: "Pipeline",  url: "/crm/negocios",  icon: Briefcase },
+      { title: "Relatorios", url: "/reports",       icon: BarChart3 },
     ],
   },
   {
     label: 'Admin',
     items: [
-      { title: "Funis",       url: "/funis",       icon: GitBranch, adminOnly: true },
       { title: "Integrações", url: "/integracoes", icon: Plug,      adminOnly: true },
       { title: "Sequências",  url: "/sequencias",  icon: Workflow,  adminOnly: true },
     ],
@@ -66,31 +69,47 @@ const supportItems: NavItem[] = [
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
+  const { data: inboxCount = 0 } = useQuery({
+    queryKey: ['inbox-count', profile?.id ?? null],
+    queryFn: () => getInboxCount(profile?.id ?? ''),
+    enabled: !!profile?.id,
+    refetchInterval: 60_000,
+  });
 
   const isActive = (url: string) => location.pathname === url || location.pathname.startsWith(`${url}/`);
 
-  const renderItem = (item: NavItem) => (
-    <Link
-      key={item.title}
-      to={item.url}
-      className={`sidebar-item ${isActive(item.url) ? "sidebar-item-active" : ""}`}
-    >
-      <item.icon className="h-5 w-5 shrink-0" />
-      <AnimatePresence>
-        {!collapsed && (
-          <motion.span
-            initial={{ opacity: 0, width: 0 }}
-            animate={{ opacity: 1, width: "auto" }}
-            exit={{ opacity: 0, width: 0 }}
-            className="truncate"
-          >
-            {item.title}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </Link>
-  );
+  const renderItem = (item: NavItem) => {
+    const count = item.url === '/hoje' ? inboxCount : 0;
+    return (
+      <Link
+        key={item.title}
+        to={item.url}
+        className={`sidebar-item ${isActive(item.url) ? "sidebar-item-active" : ""}`}
+      >
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+          <item.icon className="h-5 w-5" />
+          {count > 0 && (
+            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              {count > 99 ? '99+' : count}
+            </span>
+          )}
+        </span>
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: "auto" }}
+              exit={{ opacity: 0, width: 0 }}
+              className="truncate"
+            >
+              {item.title}
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </Link>
+    );
+  };
 
   const renderSection = (section: NavSection) => {
     const visible = section.items.filter((item) => !item.adminOnly || isAdmin);

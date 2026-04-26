@@ -1,4 +1,10 @@
-import type { PersonaType, TaskType } from "@/services/abmService";
+export type PersonaType = "cmo" | "dir_comercial" | "socio" | "ceo" | "other";
+export type TaskType =
+  | "send_whatsapp"
+  | "send_linkedin"
+  | "make_call"
+  | "send_email"
+  | "followup";
 
 export const PIPA_GTM_CONTEXT = {
   mission:

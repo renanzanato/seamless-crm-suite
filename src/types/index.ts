@@ -1,9 +1,12 @@
-export type Role = 'admin' | 'user';
+export type Role = 'admin' | 'manager' | 'rep' | 'viewer' | 'user';
 
 export interface Profile {
   id: string;
   role: Role;
   name: string | null;
+  email?: string | null;
+  team_id?: string | null;
+  is_active?: boolean;
   created_at: string;
 }
 
@@ -88,6 +91,7 @@ export interface Company {
   employees_count: number | null;
   founded_year: number | null;
   state: string | null;
+  custom_data?: Record<string, unknown> | null;
   owner?: Pick<Profile, 'id' | 'name'> | null;
 }
 
@@ -110,6 +114,7 @@ export interface Contact {
   departments?: string[] | null;
   enriched_at?: string | null;
   enrichment_source?: string | null;
+  custom_data?: Record<string, unknown> | null;
   company?: Pick<Company, 'id' | 'name'> | null;
   owner?: Pick<Profile, 'id' | 'name'> | null;
 }
@@ -125,6 +130,7 @@ export interface Deal {
   owner_id: string;
   expected_close: string | null;
   created_at: string;
+  custom_data?: Record<string, unknown> | null;
   funnel?: Pick<Funnel, 'id' | 'name'> | null;
   contact?: (Pick<Contact, 'id' | 'name'> & Partial<Pick<Contact, 'email' | 'whatsapp' | 'phone' | 'role'>>) | null;
   company?: (Pick<Company, 'id' | 'name'> & Partial<Pick<Company, 'city' | 'segment' | 'buying_signal'>>) | null;

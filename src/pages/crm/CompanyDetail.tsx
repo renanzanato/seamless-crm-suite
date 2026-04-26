@@ -6,9 +6,11 @@ import {
   ArrowLeft, Flame, Thermometer, Snowflake, Rocket, ExternalLink,
   Users, MessageSquare, Linkedin, Phone, Plus, Mail,
   TrendingUp, BarChart3, Globe, Instagram, Play, CheckCircle2,
-  Zap, Clock, AlertCircle, Pencil, StickyNote, Loader2,
+  Zap, Clock, AlertCircle, Pencil, StickyNote, Loader2, Briefcase,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
+import { Breadcrumbs } from '@/components/Breadcrumbs';
+import { PageTransition } from '@/components/PageTransition';
 import { Can } from '@/components/Can';
 import { ContactForm } from '@/components/crm/ContactForm';
 import { DealForm } from '@/components/crm/DealForm';
@@ -866,10 +868,12 @@ export default function CompanyDetail() {
 
   return (
     <DashboardLayout>
-      {/* Back */}
-      <button onClick={() => navigate('/crm/empresas')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Voltar para Contas
-      </button>
+      <PageTransition>
+      <Breadcrumbs items={[
+        { label: 'CRM' },
+        { label: 'Empresas', href: '/crm/empresas' },
+        { label: company.name },
+      ]} />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -1363,6 +1367,7 @@ export default function CompanyDetail() {
         createdBy={actorId}
         invalidateKey={['activities', 'company', company.id]}
       />
+      </PageTransition>
     </DashboardLayout>
   );
 }

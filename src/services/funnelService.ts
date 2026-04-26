@@ -12,6 +12,7 @@ export interface Stage {
   funnel_id: string;
   name: string;
   order: number;
+  color: string | null;
   created_at: string;
 }
 
@@ -77,11 +78,12 @@ export async function getStages(funnelId: string): Promise<Stage[]> {
 export async function createStage(
   funnelId: string,
   name: string,
-  order: number
+  order: number,
+  color?: string | null
 ): Promise<Stage> {
   const { data, error } = await supabase
     .from('stages')
-    .insert({ funnel_id: funnelId, name, order })
+    .insert({ funnel_id: funnelId, name, order, color: color ?? null })
     .select()
     .single();
   if (error) throw error;
@@ -91,11 +93,12 @@ export async function createStage(
 export async function updateStage(
   id: string,
   name: string,
-  order: number
+  order: number,
+  color?: string | null
 ): Promise<void> {
   const { error } = await supabase
     .from('stages')
-    .update({ name, order })
+    .update({ name, order, color: color ?? null })
     .eq('id', id);
   if (error) throw error;
 }

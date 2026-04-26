@@ -1,111 +1,184 @@
-import { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+﻿import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, DollarSign, Filter, Eye } from 'lucide-react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { KanbanBoard } from '@/components/funil/KanbanBoard';
-import { getFunnels, getStages, getDeals } from '@/services/funnelService';
-import type { Funnel, Stage, Deal } from '@/services/funnelService';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { DealForm } from '@/components/crm/DealForm';
+import { getDeals, getProfiles } from '@/services/crmService';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import type { Deal } from '@/types';
+
+function fmtMoney(value: number) {
+  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1).replace('.', ',')}M`;
+  if (value >= 1_000) return `R$ ${Math.round(value / 1_000)}k`;
+  return `R$ ${value.toLocaleString('pt-BR')}`;
+}
 
 export default function Kanban() {
-  const [funnels, setFunnels] = useState<Funnel[]>([]);
-  const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const qc = useQueryClient();
+  const { profile, isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [formOpen, setFormOpen] = useState(false);
 
+  // Filters from URL params
+  const ownerFilter = searchParams.get('owner') ?? '__all__';
+  const viewFilter = searchParams.get('view') ?? 'all'; // 'all' | 'mine'
+
+  const setOwnerFilter = useCallback(
+    (v: string) => {
+      const next = new URLSearchParams(searchParams);
+      if (v === '__all__') next.delete('owner');
+      else next.set('owner', v);
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  const toggleView = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    if (viewFilter === 'all') next.set('view', 'mine');
+    else next.delete('view');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, viewFilter]);
+
+  // Data
+  const { data: allDeals = [], isLoading } = useQuery({
+    queryKey: ['deals-kanban'],
+    queryFn: () => getDeals({}),
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles'],
+    queryFn: getProfiles,
+    enabled: isAdmin,
+  });
+
+  // Real-time
   useEffect(() => {
-    getFunnels()
-      .then((data) => {
-        setFunnels(data);
-        if (data.length > 0) {
-          setSelectedFunnelId(data[0].id);
-        } else {
-          setLoading(false);
-        }
+    const channel = supabase
+      .channel('kanban-deals')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deals' }, () => {
+        qc.invalidateQueries({ queryKey: ['deals-kanban'] });
       })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
-  }, []);
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [qc]);
 
+  // Local state for optimistic updates
+  const [localDeals, setLocalDeals] = useState<Deal[]>([]);
   useEffect(() => {
-    if (!selectedFunnelId) return;
-    setLoading(true);
-    Promise.all([getStages(selectedFunnelId), getDeals(selectedFunnelId)])
-      .then(([s, d]) => {
-        setStages(s);
-        setDeals(d);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [selectedFunnelId]);
+    setLocalDeals(allDeals);
+  }, [allDeals]);
 
-  const selectedFunnel = funnels.find((f) => f.id === selectedFunnelId);
+  // Filter pipeline
+  const filteredDeals = useMemo(() => {
+    let result = localDeals;
+
+    // View filter: only mine
+    if (viewFilter === 'mine' && profile) {
+      result = result.filter((d) => d.owner_id === profile.id);
+    }
+
+    // Owner filter
+    if (ownerFilter !== '__all__') {
+      result = result.filter((d) => d.owner_id === ownerFilter);
+    }
+
+    return result;
+  }, [localDeals, ownerFilter, viewFilter, profile]);
+
+  // Total value
+  const totalValue = useMemo(
+    () => filteredDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
+    [filteredDeals],
+  );
+
+  const handleDealMoved = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['deals-kanban'] });
+    qc.invalidateQueries({ queryKey: ['activities'] });
+  }, [qc]);
 
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Funil</h1>
-
-        {/* Funnel selector */}
-        <div className="relative">
-          <button
-            onClick={() => setDropdownOpen((o) => !o)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-border hover:bg-secondary transition-colors text-foreground"
-          >
-            {selectedFunnel?.name ?? 'Selecionar funil'}
-            <ChevronDown className="h-4 w-4" />
-          </button>
-
-          {dropdownOpen && (
-            <>
-              {/* Backdrop */}
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setDropdownOpen(false)}
-              />
-              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-20 min-w-[200px]">
-                {funnels.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => {
-                      setSelectedFunnelId(f.id);
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-secondary transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                      f.id === selectedFunnelId
-                        ? 'text-primary font-semibold'
-                        : 'text-foreground'
-                    }`}
-                  >
-                    {f.name}
-                  </button>
-                ))}
-                {funnels.length === 0 && (
-                  <p className="px-4 py-2.5 text-sm text-muted-foreground">
-                    Nenhum funil cadastrado
-                  </p>
-                )}
+      <div className="flex flex-col gap-4 mb-6 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Pipeline</h1>
+          <div className="flex items-center gap-3 mt-1">
+            <p className="text-sm text-muted-foreground">
+              {filteredDeals.length} deal(s)
+            </p>
+            {totalValue > 0 && (
+              <div className="flex items-center gap-1 text-sm font-semibold text-emerald-600">
+                <DollarSign className="h-4 w-4" />
+                {fmtMoney(totalValue)}
               </div>
-            </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View toggle */}
+          <Button
+            variant={viewFilter === 'mine' ? 'default' : 'outline'}
+            size="sm"
+            className="gap-1.5"
+            onClick={toggleView}
+          >
+            <Eye className="h-4 w-4" />
+            {viewFilter === 'mine' ? 'So meus' : 'Todos'}
+          </Button>
+
+          {/* Owner filter */}
+          {isAdmin && profiles.length > 0 && (
+            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+              <SelectTrigger className="w-44">
+                <Filter className="h-3 w-3 mr-1" />
+                <SelectValue placeholder="Responsavel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos</SelectItem>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name ?? p.id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
+
+          {/* New deal */}
+          <Button size="sm" className="gap-1.5" onClick={() => setFormOpen(true)}>
+            <Plus className="h-4 w-4" /> Novo deal
+          </Button>
         </div>
       </div>
 
       {/* Board */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-          Carregando...
-        </div>
-      ) : stages.length === 0 ? (
-        <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-          Nenhum estágio configurado para este funil.
+          Carregando pipeline...
         </div>
       ) : (
-        <KanbanBoard stages={stages} deals={deals} onDealsChange={setDeals} />
+        <KanbanBoard
+          deals={filteredDeals}
+          onDealsChange={setLocalDeals}
+          onDealMoved={handleDealMoved}
+        />
       )}
+
+      {/* Deal form */}
+      <DealForm open={formOpen} onOpenChange={setFormOpen} />
     </DashboardLayout>
   );
 }

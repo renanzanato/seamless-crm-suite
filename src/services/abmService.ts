@@ -13,6 +13,19 @@ export type CadenceStatus =
   | "proposal_sent"
   | "won"
   | "lost";
+export type CadenceTrackStatus =
+  | "pending"
+  | "done"
+  | "skipped"
+  | "replied"
+  | "active"
+  | "paused"
+  | "completed"
+  | "meeting_booked"
+  | "proposal_sent"
+  | "won"
+  | "lost"
+  | "errored";
 export type PersonaType = "cmo" | "dir_comercial" | "socio" | "ceo" | "other";
 export type TaskType =
   | "send_whatsapp"
@@ -39,6 +52,27 @@ export interface DailyTask {
   created_at: string;
   company?: { name: string; buying_signal: BuyingSignal };
   contact?: { name: string; whatsapp: string | null };
+}
+
+export interface CadenceTrack {
+  id: string;
+  company_id: string;
+  contact_id: string | null;
+  owner_id: string | null;
+  persona_type: PersonaType;
+  cadence_day: number;
+  block_number: number;
+  channel: "whatsapp" | "linkedin" | "phone" | "email";
+  status: CadenceTrackStatus;
+  scheduled_for: string | null;
+  completed_at: string | null;
+  message_sent: string | null;
+  reply_received: string | null;
+  enrolled_at: string | null;
+  created_at: string;
+  updated_at: string | null;
+  company?: { id: string; name: string; buying_signal: BuyingSignal; cadence_status: string | null; cadence_day: number | null };
+  contact?: { id: string; name: string; role: string | null; whatsapp: string | null; email: string | null } | null;
 }
 
 export interface AccountSignal {
@@ -288,10 +322,113 @@ function dueDateForCadenceDay(startDate: Date, cadenceDay: number) {
   return toDateKey(nextWorkingDate(addDays(startDate, cadenceDay - 1)));
 }
 
+function getTrackCadenceDay(enrolledAt: string | null | undefined, today = new Date()) {
+  if (!enrolledAt) return 1;
+  const enrolled = new Date(enrolledAt);
+  if (Number.isNaN(enrolled.getTime())) return 1;
+
+  const start = nextWorkingDate(enrolled);
+  const todayKey = toDateKey(today);
+  let count = 0;
+
+  for (let cursor = start; toDateKey(cursor) <= todayKey; cursor = addDays(cursor, 1)) {
+    if (isWorkingDay(cursor)) count += 1;
+  }
+
+  return Math.max(1, Math.min(count || 1, 21));
+}
+
+async function createDueTasksForTrack(
+  track: Pick<CadenceTrack, "id" | "company_id" | "contact_id" | "persona_type" | "enrolled_at"> & {
+    contactName: string;
+    companyName: string;
+  },
+  cadenceDay: number,
+) {
+  const steps = PIPA_21_DAY_CADENCE.filter(
+    (step) => step.day === cadenceDay && step.personas.includes(track.persona_type),
+  );
+  if (steps.length === 0) return 0;
+
+  const { data: existing, error: existingError } = await supabase
+    .from("daily_tasks")
+    .select("task_type")
+    .eq("cadence_track_id", track.id)
+    .eq("cadence_day", cadenceDay);
+  if (existingError) throw existingError;
+
+  const existingTypes = new Set((existing ?? []).map((row) => row.task_type));
+  const startDate = track.enrolled_at ? new Date(track.enrolled_at) : new Date();
+  const dueDate = dueDateForCadenceDay(startDate, cadenceDay);
+
+  const tasks = steps
+    .filter((step) => !existingTypes.has(step.taskType))
+    .map((step) => ({
+      company_id: track.company_id,
+      contact_id: track.contact_id,
+      cadence_track_id: track.id,
+      task_type: step.taskType,
+      persona_type: track.persona_type,
+      cadence_day: step.day,
+      block_number: step.block,
+      generated_message: personalizeTemplate(step.message, {
+        name: track.contactName,
+        company: track.companyName,
+      }),
+      urgency: step.day === 1 ? "today" : "normal",
+      due_date: dueDate,
+      status: "pending",
+    }));
+
+  if (tasks.length === 0) return 0;
+
+  const { error } = await supabase.from("daily_tasks").insert(tasks);
+  if (error) throw error;
+  return tasks.length;
+}
+
+export async function getCadenceTracks(): Promise<CadenceTrack[]> {
+  const { data, error } = await supabase
+    .from("cadence_tracks")
+    .select(`
+      id, company_id, contact_id, owner_id, persona_type, cadence_day, block_number, channel,
+      status, scheduled_for, completed_at, message_sent, reply_received,
+      enrolled_at, created_at, updated_at,
+      company:companies(id, name, buying_signal, cadence_status, cadence_day),
+      contact:contacts(id, name, role, whatsapp, email)
+    `)
+    .order("enrolled_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CadenceTrack[];
+}
+
+export async function setCadenceTrackStatus(
+  trackId: string,
+  status: Extract<CadenceTrackStatus, "active" | "paused" | "completed" | "meeting_booked" | "proposal_sent" | "won" | "lost">,
+): Promise<void> {
+  const terminal = ["completed", "meeting_booked", "proposal_sent", "won", "lost"].includes(status);
+  const { error } = await supabase
+    .from("cadence_tracks")
+    .update({
+      status,
+      completed_at: terminal ? new Date().toISOString() : null,
+    })
+    .eq("id", trackId);
+  if (error) throw error;
+}
+
+export async function runSequenceWorker(): Promise<unknown> {
+  const { data, error } = await supabase.functions.invoke("sequence-worker", {
+    body: { force: true },
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function startCadenceForContacts(payload: StartAccountCadencePayload): Promise<number> {
   if (!payload.companyId) throw new Error("Selecione uma conta.");
-  if (payload.contacts.length < 2) {
-    throw new Error("Selecione pelo menos 2 pessoas da conta para iniciar a sequencia.");
+  if (payload.contacts.length < 1) {
+    throw new Error("Selecione pelo menos 1 pessoa da conta para iniciar a sequencia.");
   }
 
   const startDate = payload.startDate ?? new Date();
@@ -300,50 +437,97 @@ export async function startCadenceForContacts(payload: StartAccountCadencePayloa
     persona: inferPersonaFromRole(contact.role),
   }));
 
-  const tasks = PIPA_21_DAY_CADENCE.flatMap((step) =>
-    contactsWithPersona
-      .filter((contact) => step.personas.includes(contact.persona))
-      .map((contact) => ({
-        company_id: payload.companyId,
-        contact_id: contact.id,
-        task_type: step.taskType,
-        persona_type: contact.persona,
-        cadence_day: step.day,
-        block_number: step.block,
-        generated_message: personalizeTemplate(step.message, {
-          name: contact.name,
-          company: payload.companyName,
-        }),
-        urgency: step.day === 1 ? "today" : "normal",
-        due_date: dueDateForCadenceDay(startDate, step.day),
-        status: "pending",
-      })),
+  const contactsInTemplate = contactsWithPersona.filter((contact) =>
+    PIPA_21_DAY_CADENCE.some((step) => step.personas.includes(contact.persona)),
   );
 
-  if (tasks.length === 0) {
+  if (contactsInTemplate.length === 0) {
     throw new Error("As pessoas selecionadas precisam ter cargos de marketing, comercial ou C-Level.");
   }
 
-  await supabase
-    .from("daily_tasks")
-    .delete()
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select("id, name, owner_id")
+    .eq("id", payload.companyId)
+    .single();
+  if (companyError) throw companyError;
+
+  const contactIds = contactsInTemplate.map((contact) => contact.id);
+  const { data: existingTracks, error: existingError } = await supabase
+    .from("cadence_tracks")
+    .select("id, contact_id, status")
     .eq("company_id", payload.companyId)
-    .eq("status", "pending");
+    .in("contact_id", contactIds)
+    .in("status", ["active", "paused"]);
+  if (existingError) throw existingError;
 
-  const { error: insertError } = await supabase.from("daily_tasks").insert(tasks);
-  if (insertError) throw insertError;
+  const existingByContact = new Map((existingTracks ?? []).map((track) => [track.contact_id, track]));
+  const tracksToInsert = contactsInTemplate
+    .filter((contact) => !existingByContact.has(contact.id))
+    .map((contact) => ({
+      company_id: payload.companyId,
+      contact_id: contact.id,
+      owner_id: company.owner_id,
+      persona_type: contact.persona,
+      cadence_day: 1,
+      block_number: 1,
+      channel: "whatsapp",
+      status: "active",
+      scheduled_for: dueDateForCadenceDay(startDate, 1),
+      enrolled_at: startDate.toISOString(),
+    }));
 
-  const { error: companyError } = await supabase
+  if (tracksToInsert.length > 0) {
+    const { error: insertTracksError } = await supabase.from("cadence_tracks").insert(tracksToInsert);
+    if (insertTracksError) throw insertTracksError;
+  }
+
+  const pausedIds = (existingTracks ?? [])
+    .filter((track) => track.status === "paused")
+    .map((track) => track.id);
+  if (pausedIds.length > 0) {
+    const { error: resumeError } = await supabase
+      .from("cadence_tracks")
+      .update({ status: "active", completed_at: null })
+      .in("id", pausedIds);
+    if (resumeError) throw resumeError;
+  }
+
+  const { data: activeTracks, error: activeError } = await supabase
+    .from("cadence_tracks")
+    .select("id, company_id, contact_id, persona_type, enrolled_at, contact:contacts(name)")
+    .eq("company_id", payload.companyId)
+    .in("contact_id", contactIds)
+    .eq("status", "active");
+  if (activeError) throw activeError;
+
+  let createdTasks = 0;
+  for (const track of activeTracks ?? []) {
+    const contact = contactsInTemplate.find((item) => item.id === track.contact_id);
+    if (!contact) continue;
+    const cadenceDay = getTrackCadenceDay(track.enrolled_at, startDate);
+    createdTasks += await createDueTasksForTrack({
+      id: track.id,
+      company_id: track.company_id,
+      contact_id: track.contact_id,
+      persona_type: track.persona_type,
+      enrolled_at: track.enrolled_at,
+      contactName: contact.name,
+      companyName: payload.companyName || company.name,
+    }, cadenceDay);
+  }
+
+  const { error: updateCompanyError } = await supabase
     .from("companies")
     .update({
       cadence_status: "active",
       cadence_day: 1,
-      cadence_started_at: new Date().toISOString(),
+      cadence_started_at: startDate.toISOString(),
     })
     .eq("id", payload.companyId);
-  if (companyError) throw companyError;
+  if (updateCompanyError) throw updateCompanyError;
 
-  return tasks.length;
+  return createdTasks;
 }
 
 // ── Dashboard stats ──────────────────────────────────────

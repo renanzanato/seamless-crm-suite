@@ -1,6 +1,7 @@
 import { AppSidebar } from "./AppSidebar";
 import { CROCopilot } from "./CROCopilot";
 import { TopBar } from "./TopBar";
+import { CommandPalette } from "./CommandPalette";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </main>
         <CROCopilot />
       </div>
+      <CommandPalette />
     </div>
   );
 }

@@ -13,13 +13,20 @@ function throwOnError<T>({ data, error }: { data: T | null; error: unknown }): T
 }
 
 // ── Profiles ─────────────────────────────────────────────────────────────────
-export async function getProfiles(): Promise<Pick<Profile, 'id' | 'name'>[]> {
+export async function getProfiles(): Promise<Pick<Profile, 'id' | 'name' | 'email'>[]> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, name')
-    .order('name');
+    .select('id, name, email')
+    .order('name', { nullsFirst: false });
   if (error) throw error;
   return data ?? [];
+}
+
+/** Retorna um label legível pra um profile mesmo quando `name` é NULL. */
+export function profileLabel(p: { name?: string | null; email?: string | null; id?: string | null }): string {
+  if (p.name && p.name.trim()) return p.name;
+  if (p.email && p.email.trim()) return p.email.split('@')[0];
+  return p.id ? `Usuário ${p.id.slice(0, 8)}` : 'Usuário sem nome';
 }
 
 // ── Funnels ──────────────────────────────────────────────────────────────────

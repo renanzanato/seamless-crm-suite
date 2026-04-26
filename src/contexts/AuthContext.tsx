@@ -5,7 +5,7 @@ import {
   isLocalAuthBypassEnabled,
   isSupabaseConfigured,
 } from '@/lib/supabase';
-import type { Profile } from '@/types';
+import type { Profile, Role } from '@/types';
 
 const BYPASS_USER_ID = '00000000-0000-0000-0000-000000000000';
 

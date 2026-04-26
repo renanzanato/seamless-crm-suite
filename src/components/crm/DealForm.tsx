@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { createDeal, updateDeal, getContacts, getCompanies, getFunnels, getProfiles } from '@/services/crmService';
+import { createDeal, updateDeal, getContacts, getCompanies, getFunnels, getProfiles, profileLabel } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
 import type { Deal } from '@/types';
 import { DEAL_STAGES } from '@/types';
@@ -43,14 +43,31 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
   const { profile, isAdmin } = useAuth();
   const [form, setForm] = useState<FormState>(EMPTY);
 
-  const { data: funnels = [] } = useQuery({ queryKey: ['funnels'], queryFn: getFunnels });
-  const { data: contacts = [] } = useQuery({ queryKey: ['contacts'], queryFn: () => getContacts() });
-  const { data: companies = [] } = useQuery({ queryKey: ['companies'], queryFn: () => getCompanies() });
+  const { data: funnels = [] } = useQuery({
+    queryKey: ['funnels'],
+    queryFn: getFunnels,
+    enabled: open,
+  });
+  const { data: contacts = [], error: contactsErr, isLoading: contactsLoading } = useQuery({
+    queryKey: ['contacts', 'all'],
+    queryFn: () => getContacts(),
+    enabled: open,
+  });
+  const { data: companies = [], error: companiesErr, isLoading: companiesLoading } = useQuery({
+    queryKey: ['companies', 'all'],
+    queryFn: () => getCompanies(),
+    enabled: open,
+  });
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles'],
     queryFn: getProfiles,
-    enabled: isAdmin,
+    enabled: open && isAdmin,
   });
+
+  useEffect(() => {
+    if (contactsErr) toast.error(`Falha ao carregar contatos: ${(contactsErr as Error).message}`);
+    if (companiesErr) toast.error(`Falha ao carregar empresas: ${(companiesErr as Error).message}`);
+  }, [contactsErr, companiesErr]);
 
   useEffect(() => {
     if (deal) {
@@ -148,22 +165,48 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Contato</Label>
+              <Label>
+                Contato{' '}
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({contactsLoading ? 'carregando…' : `${contacts.length} disponíveis`})
+                </span>
+              </Label>
               <Select value={form.contact_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, contact_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Nenhum —</SelectItem>
-                  {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {contacts.length === 0 && !contactsLoading && (
+                    <SelectItem value="__empty__" disabled>
+                      Nenhum contato cadastrado
+                    </SelectItem>
+                  )}
+                  {contacts.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}{c.company?.name ? ` · ${c.company.name}` : ''}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Empresa</Label>
+              <Label>
+                Empresa{' '}
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({companiesLoading ? 'carregando…' : `${companies.length} disponíveis`})
+                </span>
+              </Label>
               <Select value={form.company_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, company_id: v === '__none__' ? '' : v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Nenhuma —</SelectItem>
-                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {companies.length === 0 && !companiesLoading && (
+                    <SelectItem value="__empty__" disabled>
+                      Nenhuma empresa cadastrada
+                    </SelectItem>
+                  )}
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -175,7 +218,9 @@ export function DealForm({ open, onOpenChange, deal, defaultCompanyId = '' }: Pr
               <Select value={form.owner_id} onValueChange={(v) => setForm((p) => ({ ...p, owner_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
-                  {profiles.map((p) => <SelectItem key={p.id} value={p.id}>{p.name ?? p.id}</SelectItem>)}
+                  {profiles.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{profileLabel(p)}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
