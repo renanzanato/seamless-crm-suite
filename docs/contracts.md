@@ -99,16 +99,22 @@ Contrato logico:
 
 ```ts
 type StepType =
-  | "start"
   | "email_manual"
   | "email_auto"
   | "call_task"
   | "linkedin_task"
   | "whatsapp_task"
   | "wait"
-  | "condition"
-  | "end";
+  | "condition";
 ```
+
+O node inicial e derivado como o unico step sem entrada. Nodes finais sao steps sem saida. Start/end explicitos ficam fora da Onda 2.1 para nao quebrar o worker atual.
+
+Campos de layout:
+
+| Campo | Tipo | Regra |
+|---|---|---|
+| `flow_position` | jsonb | `{ "x": number, "y": number }` usado pelo ReactFlow |
 
 `config` por tipo:
 
@@ -125,7 +131,7 @@ type StepType =
 
 ### Edge
 
-Contrato esperado para Onda 2:
+Tabela atual: `public.sequence_step_edges`
 
 | Campo | Tipo | Regra |
 |---|---|---|
@@ -134,8 +140,20 @@ Contrato esperado para Onda 2:
 | `source_step_id` | uuid | FK step |
 | `target_step_id` | uuid | FK step |
 | `source_handle` | text nullable | `true`, `false`, `default` |
-| `condition` | text nullable | `replied`, `opened`, `clicked`, `meeting_booked`, `field_present`, `lifecycle_changed` |
-| `position` | int | Ordem visual/execucao fallback |
+| `target_handle` | text nullable | Reservado para ReactFlow |
+| `label` | text nullable | Ex: `Sim`, `Nao` |
+| `edge_type` | text | `default` enquanto nao houver edge custom |
+
+Validacoes minimas no save:
+
+- pelo menos um step;
+- exatamente um node inicial quando houver mais de um step;
+- pelo menos um node final;
+- nenhum node solto;
+- condicao sempre com saida `true` e `false`;
+- sem loop;
+- templates de email/WhatsApp com corpo preenchido;
+- variaveis fora do contrato bloqueiam save.
 
 ## Variaveis De Template
 
@@ -163,6 +181,9 @@ Aliases aceitos na UI, compilados antes de salvar/executar:
 {{nome}} -> {{contact.first_name}}
 {{empresa}} -> {{company.name}}
 {{empreendimento}} -> {{company.custom.nome_empreendimento}}
+{{role}} -> {{contact.role}}
+{{cargo}} -> {{contact.role}}
+{{first_name}} -> {{contact.first_name}}
 ```
 
 Fallbacks validos:
@@ -178,4 +199,3 @@ Worker e UI devem registrar:
 - `variables_used`
 - `variables_missing`
 - `fallback_strategy`
-

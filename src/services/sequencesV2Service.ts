@@ -18,7 +18,20 @@ export interface StepV2 {
   position: number;
   step_type: StepType;
   config: Record<string, unknown>;
+  flow_position?: { x: number; y: number } | null;
   created_at: string;
+}
+
+export interface StepEdgeV2 {
+  id?: string;
+  sequence_id: string;
+  source_step_id: string;
+  target_step_id: string;
+  source_handle: string | null;
+  target_handle: string | null;
+  label: string | null;
+  edge_type: string;
+  created_at?: string;
 }
 
 export interface StepRun {
@@ -62,6 +75,11 @@ export interface FlowNodeData {
   label: string;
 }
 
+export interface SequenceFlow {
+  steps: StepV2[];
+  edges: StepEdgeV2[];
+}
+
 // ---------------------------------------------------------------------------
 // CRUD Steps V2
 // ---------------------------------------------------------------------------
@@ -76,6 +94,27 @@ export async function getStepsV2(sequenceId: string): Promise<StepV2[]> {
   return data ?? [];
 }
 
+export async function getStepEdgesV2(sequenceId: string): Promise<StepEdgeV2[]> {
+  const { data, error } = await supabase
+    .from('sequence_step_edges')
+    .select('*')
+    .eq('sequence_id', sequenceId)
+    .order('created_at');
+  if (error) {
+    console.warn('[sequencesV2Service] sequence_step_edges unavailable:', error.message);
+    return [];
+  }
+  return (data ?? []) as StepEdgeV2[];
+}
+
+export async function getSequenceFlow(sequenceId: string): Promise<SequenceFlow> {
+  const [steps, edges] = await Promise.all([
+    getStepsV2(sequenceId),
+    getStepEdgesV2(sequenceId),
+  ]);
+  return { steps, edges };
+}
+
 export async function upsertStepsV2(
   sequenceId: string,
   steps: Omit<StepV2, 'created_at'>[],
@@ -88,7 +127,7 @@ export async function upsertStepsV2(
   if (existingError) throw existingError;
 
   const existingIds = new Set((existing ?? []).map((s) => s.id));
-  const incomingIds = new Set(steps.filter((s) => !s.id.startsWith('new-')).map((s) => s.id));
+  const incomingIds = new Set(steps.map((s) => s.id));
 
   // Delete steps that are no longer present
   const toDelete = [...existingIds].filter((id) => !incomingIds.has(id));
@@ -97,29 +136,59 @@ export async function upsertStepsV2(
     if (error) throw error;
   }
 
-  // Upsert remaining
-  for (const step of steps) {
-    const isNew = step.id.startsWith('new-');
-    if (isNew) {
-      const { error } = await supabase.from('sequence_steps_v2').insert({
-        sequence_id: sequenceId,
-        position: step.position,
-        step_type: step.step_type,
-        config: step.config,
-      });
-      if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('sequence_steps_v2')
-        .update({
-          position: step.position,
-          step_type: step.step_type,
-          config: step.config,
-        })
-        .eq('id', step.id);
-      if (error) throw error;
-    }
+  if (steps.length === 0) return;
+
+  const rows = steps.map((step) => ({
+    id: step.id,
+    sequence_id: sequenceId,
+    position: step.position,
+    step_type: step.step_type,
+    config: step.config,
+    flow_position: step.flow_position ?? { x: 250, y: step.position * 140 },
+  }));
+
+  const { error } = await supabase
+    .from('sequence_steps_v2')
+    .upsert(rows);
+  if (error) throw error;
+}
+
+export async function upsertStepEdgesV2(
+  sequenceId: string,
+  edges: Omit<StepEdgeV2, 'id' | 'created_at' | 'sequence_id'>[],
+): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from('sequence_step_edges')
+    .delete()
+    .eq('sequence_id', sequenceId);
+  if (deleteError) {
+    console.warn('[sequencesV2Service] could not reset sequence_step_edges:', deleteError.message);
+    return;
   }
+
+  if (edges.length === 0) return;
+
+  const { error } = await supabase.from('sequence_step_edges').insert(
+    edges.map((edge) => ({
+      sequence_id: sequenceId,
+      source_step_id: edge.source_step_id,
+      target_step_id: edge.target_step_id,
+      source_handle: edge.source_handle,
+      target_handle: edge.target_handle,
+      label: edge.label,
+      edge_type: edge.edge_type,
+    })),
+  );
+  if (error) throw error;
+}
+
+export async function upsertSequenceFlow(
+  sequenceId: string,
+  steps: Omit<StepV2, 'created_at'>[],
+  edges: Omit<StepEdgeV2, 'id' | 'created_at' | 'sequence_id'>[],
+): Promise<void> {
+  await upsertStepsV2(sequenceId, steps);
+  await upsertStepEdgesV2(sequenceId, edges);
 }
 
 // ---------------------------------------------------------------------------
