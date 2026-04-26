@@ -14,18 +14,102 @@ function isBusinessHour(): boolean {
   return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
 }
 
+const TEMPLATE_ALIASES: Record<string, string> = {
+  nome: 'contact.first_name',
+  primeiro_nome: 'contact.first_name',
+  first_name: 'contact.first_name',
+  nome_completo: 'contact.name',
+  empresa: 'company.name',
+  empreendimento: 'company.custom.nome_empreendimento',
+  role: 'contact.role',
+  cargo: 'contact.role',
+  cidade: 'company.city',
+};
+
+const TEMPLATE_VARIABLES = new Set([
+  'contact.name',
+  'contact.first_name',
+  'contact.email',
+  'contact.whatsapp',
+  'contact.role',
+  'company.name',
+  'company.domain',
+  'company.city',
+  'company.industry',
+  'company.custom.nome_empreendimento',
+  'deal.title',
+  'deal.value',
+  'owner.name',
+]);
+
+const TEMPLATE_PREFIXES = ['contact.', 'company.', 'company.custom.', 'deal.', 'owner.', 'custom.'];
+const VARIABLE_PATTERN = /\{\{\s*([^}]+?)\s*\}\}/g;
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values)].sort();
+}
+
+function normalizeVariable(variable: string) {
+  const trimmed = variable.trim();
+  return TEMPLATE_ALIASES[trimmed] ?? trimmed;
+}
+
+function firstName(value: unknown) {
+  if (typeof value !== 'string') return '';
+  return value.trim().split(/\s+/)[0] ?? '';
+}
+
+function readPath(source: unknown, path: string[]) {
+  let current = source;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function isAllowedVariable(variable: string) {
+  return TEMPLATE_VARIABLES.has(variable) || TEMPLATE_PREFIXES.some((prefix) => variable.startsWith(prefix));
+}
+
+function resolveVariable(variable: string, context: Record<string, unknown>) {
+  if (variable === 'contact.first_name') return firstName((context.contact as Record<string, unknown> | null)?.name);
+  const [scope, ...path] = variable.split('.');
+  return readPath(context[scope], path);
+}
+
 function renderTemplate(
   template: string,
-  contact: Record<string, unknown>,
-  company: Record<string, unknown> | null,
-): string {
-  if (!template) return '';
-  return template
-    .replace(/\{\{nome\}\}/g, String((contact.name as string)?.split(' ')[0] ?? ''))
-    .replace(/\{\{primeiro_nome\}\}/g, String((contact.name as string)?.split(' ')[0] ?? ''))
-    .replace(/\{\{nome_completo\}\}/g, String(contact.name ?? ''))
-    .replace(/\{\{empresa\}\}/g, String(company?.name ?? ''))
-    .replace(/\{\{role\}\}/g, String(contact.role ?? ''));
+  context: Record<string, unknown>,
+  fallbackStrategy = 'block',
+  defaults: Record<string, string> = {},
+) {
+  const variablesMissing: string[] = [];
+  const variablesInvalid: string[] = [];
+  const bodyRendered = (template || '').replace(VARIABLE_PATTERN, (match, variable: string) => {
+    const normalized = normalizeVariable(variable);
+    if (!isAllowedVariable(normalized)) {
+      variablesInvalid.push(normalized);
+      return match;
+    }
+    const value = resolveVariable(normalized, context);
+    if (value == null || value === '') {
+      variablesMissing.push(normalized);
+      return defaults[normalized] ?? (fallbackStrategy === 'default' ? '' : match);
+    }
+    return String(value);
+  });
+  const variables = uniqueSorted(Array.from((template || '').matchAll(VARIABLE_PATTERN)).map((match) => normalizeVariable(match[1])));
+  const invalid = uniqueSorted(variablesInvalid);
+  const missing = uniqueSorted(variablesMissing);
+  return {
+    template,
+    body_rendered: bodyRendered,
+    variables_used: variables.filter((variable) => !invalid.includes(variable) && !missing.includes(variable)),
+    variables_missing: missing,
+    variables_invalid: invalid,
+    fallback_strategy: fallbackStrategy,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -76,7 +160,7 @@ serve(async (req) => {
           .in('sequence_id', sequenceIds)
           .order('position'),
         companyIds.length > 0
-          ? supabase.from('companies').select('id, name').in('id', companyIds)
+          ? supabase.from('companies').select('id, name, domain, city, segment, custom_data').in('id', companyIds)
           : { data: [] },
       ]);
 
@@ -245,7 +329,34 @@ serve(async (req) => {
         (currentStep.config as any).body_template ??
         (currentStep.config as any).prompt ??
         '';
-      const rendered = renderTemplate(tpl, contact, company);
+      const renderCompany = company
+        ? {
+          ...company,
+          industry: company.segment,
+          custom: company.custom_data ?? {},
+        }
+        : null;
+      const renderContext = { contact, company: renderCompany };
+      const fallbackStrategy = (currentStep.config as any).fallback_strategy ?? 'block';
+      const rendered = renderTemplate(tpl, renderContext, fallbackStrategy);
+      const subjectTemplate = (currentStep.config as any).subject_template ?? `Sequência auto`;
+      const renderedSubject = renderTemplate(subjectTemplate, renderContext, fallbackStrategy);
+      const renderErrors = [
+        ...rendered.variables_invalid,
+        ...renderedSubject.variables_invalid,
+        ...(fallbackStrategy === 'block' ? rendered.variables_missing : []),
+        ...(fallbackStrategy === 'block' ? renderedSubject.variables_missing : []),
+      ];
+      if (renderErrors.length > 0) {
+        await supabase.from('sequence_step_runs').insert({
+          enrollment_id: enrollment.id,
+          step_id: currentStep.id,
+          status: 'failed',
+          error_msg: `Template variavel ausente/invalida: ${renderErrors[0]}`,
+        });
+        processed++;
+        continue;
+      }
 
       // Map step_type → activity kind
       const kindMap: Record<string, string> = {
@@ -265,8 +376,8 @@ serve(async (req) => {
         kind: isManualTask ? 'task' : actKind,
         subject: isManualTask
           ? `[Sequência] ${currentStep.step_type.replace('_', ' ')}`
-          : (currentStep.config as any).subject_template ?? `Sequência auto`,
-        body: rendered,
+          : renderedSubject.body_rendered,
+        body: rendered.body_rendered,
         direction: isManualTask ? null : 'out',
         occurred_at: now.toISOString(),
         contact_id: contact.id,
@@ -275,6 +386,12 @@ serve(async (req) => {
           sequence_id: seq?.id,
           step_id: currentStep.id,
           step_type: currentStep.step_type,
+          template: rendered.template,
+          body_rendered: rendered.body_rendered,
+          variables_used: rendered.variables_used,
+          variables_missing: rendered.variables_missing,
+          variables_invalid: rendered.variables_invalid,
+          fallback_strategy: rendered.fallback_strategy,
           is_automated: !isManualTask,
           ...(isManualTask ? { status: 'pending', due_date: now.toISOString().slice(0, 10) } : {}),
         },

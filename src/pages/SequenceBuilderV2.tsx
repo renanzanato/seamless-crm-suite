@@ -24,6 +24,7 @@ import { StepNode } from '@/components/sequence-builder/StepNode';
 import { StepPalette } from '@/components/sequence-builder/StepPalette';
 import { StepConfigPanel } from '@/components/sequence-builder/StepConfigPanel';
 import { SequenceStats } from '@/components/sequence-builder/SequenceStats';
+import { findInvalidTemplateVariables } from '@/lib/templateRenderer';
 import {
   getSequenceFlow,
   upsertSequenceFlow,
@@ -54,24 +55,6 @@ const FALSE_EDGE = {
   style: { stroke: '#ef4444' },
   markerEnd: { type: MarkerType.ArrowClosed, color: '#ef4444' },
 };
-
-const ALLOWED_TEMPLATE_ALIASES = new Set([
-  'nome',
-  'empresa',
-  'empreendimento',
-  'role',
-  'cargo',
-  'first_name',
-]);
-
-const ALLOWED_TEMPLATE_PREFIXES = [
-  'contact.',
-  'company.',
-  'company.custom.',
-  'deal.',
-  'owner.',
-  'custom.',
-];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -182,20 +165,11 @@ function flowToStepEdges(edges: Edge[]): Omit<StepEdgeV2, 'id' | 'created_at' | 
     }));
 }
 
-function extractTemplateVariables(value: unknown) {
-  if (typeof value !== 'string') return [];
-  return Array.from(value.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)).map((match) => match[1].trim());
-}
-
 function invalidTemplateVariables(config: Record<string, unknown>) {
-  const variables = [
-    ...extractTemplateVariables(config.subject_template),
-    ...extractTemplateVariables(config.body_template),
+  return [
+    ...findInvalidTemplateVariables(String(config.subject_template ?? '')),
+    ...findInvalidTemplateVariables(String(config.body_template ?? '')),
   ];
-  return variables.filter((variable) =>
-    !ALLOWED_TEMPLATE_ALIASES.has(variable)
-    && !ALLOWED_TEMPLATE_PREFIXES.some((prefix) => variable.startsWith(prefix)),
-  );
 }
 
 function validateFlow(nodes: Node[], edges: Edge[]) {

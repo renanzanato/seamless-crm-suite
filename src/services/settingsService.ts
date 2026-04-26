@@ -1,4 +1,8 @@
 import { supabase } from '@/lib/supabase';
+import {
+  extractTemplateVariables,
+  renderTemplatePreview,
+} from '@/lib/templateRenderer';
 import type { Role } from '@/types';
 
 export type SettingsRole = 'admin' | 'manager' | 'rep' | 'viewer';
@@ -94,14 +98,7 @@ function mapTemplate(row: Record<string, unknown>): MessageTemplate {
   };
 }
 
-export function extractTemplateVariables(body: string): string[] {
-  const matches = body.matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g);
-  return [...new Set([...matches].map((match) => match[1]))].sort();
-}
-
-export function renderTemplatePreview(body: string, data: Record<string, string>): string {
-  return body.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key: string) => data[key] ?? `{{${key}}}`);
-}
+export { extractTemplateVariables, renderTemplatePreview };
 
 export async function listProfiles(): Promise<SettingsProfile[]> {
   const { data, error } = await supabase

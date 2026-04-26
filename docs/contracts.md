@@ -41,7 +41,8 @@ Payload minimo para mensagens:
   "template": "Oi {{contact.first_name}}",
   "body_rendered": "Oi Renan",
   "variables_used": ["contact.first_name"],
-  "variables_missing": []
+  "variables_missing": [],
+  "variables_invalid": []
 }
 ```
 
@@ -198,4 +199,5 @@ Worker e UI devem registrar:
 - `body_rendered`
 - `variables_used`
 - `variables_missing`
+- `variables_invalid`
 - `fallback_strategy`

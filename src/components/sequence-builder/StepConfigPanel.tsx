@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { STEP_TYPE_LABELS } from '@/services/sequencesV2Service';
+import { findInvalidTemplateVariables } from '@/lib/templateRenderer';
 import type { StepType } from '@/services/sequencesV2Service';
 
 interface StepConfigPanelProps {
@@ -34,6 +35,10 @@ export function StepConfigPanel({
   const update = (key: string, value: unknown) => {
     onConfigChange(stepId, { ...config, [key]: value });
   };
+  const invalidVariables = findInvalidTemplateVariables([
+    config.subject_template,
+    config.body_template,
+  ].filter((value): value is string => typeof value === 'string').join('\n'));
 
   return (
     <div className="w-80 border-l border-border bg-card p-4 overflow-y-auto">
@@ -68,8 +73,13 @@ export function StepConfigPanel({
               />
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Variáveis: {'{{nome}}'}, {'{{empresa}}'}, {'{{role}}'}, {'{{custom.<field>}}'}
+              Variáveis: {'{{contact.first_name}}'}, {'{{company.name}}'}, {'{{company.custom.nome_empreendimento}}'}
             </p>
+            {invalidVariables.length > 0 && (
+              <p className="text-[10px] font-medium text-destructive">
+                Variavel invalida: {'{{'}{invalidVariables[0]}{'}}'}
+              </p>
+            )}
           </>
         )}
 
@@ -84,8 +94,13 @@ export function StepConfigPanel({
               className="mt-1 min-h-[120px] text-xs"
             />
             <p className="text-[10px] text-muted-foreground mt-1">
-              Variáveis: {'{{nome}}'}, {'{{empresa}}'}, {'{{role}}'}
+              Variáveis: {'{{contact.first_name}}'}, {'{{company.name}}'}, {'{{company.custom.nome_empreendimento}}'}
             </p>
+            {invalidVariables.length > 0 && (
+              <p className="mt-1 text-[10px] font-medium text-destructive">
+                Variavel invalida: {'{{'}{invalidVariables[0]}{'}}'}
+              </p>
+            )}
           </div>
         )}
 
@@ -141,6 +156,11 @@ export function StepConfigPanel({
                   placeholder="Nota de conexão..."
                   className="mt-1 min-h-[80px] text-xs"
                 />
+                {invalidVariables.length > 0 && (
+                  <p className="mt-1 text-[10px] font-medium text-destructive">
+                    Variavel invalida: {'{{'}{invalidVariables[0]}{'}}'}
+                  </p>
+                )}
               </div>
             )}
           </>
