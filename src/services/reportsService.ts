@@ -1,5 +1,4 @@
 ﻿import { supabase } from '@/lib/supabase';
-import { DEAL_STAGES } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,6 +77,32 @@ function reportStage(row: DealReportRow) {
   return row.stage_ref?.name || 'Qualificação';
 }
 
+function uniqueStageNames(names: string[]): string[] {
+  return Array.from(new Set(names.filter(Boolean)));
+}
+
+function isClosedStage(stage: string): boolean {
+  return stage.toLocaleLowerCase('pt-BR').startsWith('fechado');
+}
+
+function mergeStageNames(primary: string[], observed: string[]): string[] {
+  return uniqueStageNames([...primary, ...observed]);
+}
+
+async function getReportStageNames(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('stages')
+    .select('name, order')
+    .order('order', { ascending: true });
+
+  if (error) {
+    console.warn('[reportsService] stage options unavailable:', error.message);
+    return [];
+  }
+
+  return uniqueStageNames((data ?? []).map((stage) => stage.name as string));
+}
+
 async function getDealRowsForReports(params: {
   periodDays?: number;
   ownerId?: string;
@@ -113,9 +138,10 @@ export async function getFunnelData(
   ownerId?: string,
 ): Promise<FunnelData[]> {
   const data = await getDealRowsForReports({ periodDays, ownerId });
+  const stages = mergeStageNames(await getReportStageNames(), data.map(reportStage));
 
   const byStage: Record<string, { count: number; value: number }> = {};
-  DEAL_STAGES.forEach((s) => { byStage[s] = { count: 0, value: 0 }; });
+  stages.forEach((s) => { byStage[s] = { count: 0, value: 0 }; });
 
   data.forEach((d) => {
     const s = reportStage(d);
@@ -124,7 +150,7 @@ export async function getFunnelData(
     byStage[s].value += d.value ?? 0;
   });
 
-  return DEAL_STAGES.map((stage) => ({
+  return stages.map((stage) => ({
     stage,
     count: byStage[stage]?.count ?? 0,
     value: byStage[stage]?.value ?? 0,
@@ -133,6 +159,8 @@ export async function getFunnelData(
 
 /** 2. Deal velocity: tempo medio por stage */
 export async function getVelocityData(): Promise<VelocityData[]> {
+  const configuredStages = await getReportStageNames();
+
   // Try deal_history first
   const { data: history, error: histErr } = await supabase
     .from('deal_history')
@@ -161,7 +189,8 @@ export async function getVelocityData(): Promise<VelocityData[]> {
       }
     }
 
-    return DEAL_STAGES.filter((s) => !s.startsWith('Fechado')).map((stage) => {
+    const stages = mergeStageNames(configuredStages, Object.keys(stageMovements)).filter((stage) => !isClosedStage(stage));
+    return stages.map((stage) => {
       const times = stageMovements[stage] ?? [];
       const avg = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
       return { stage, avgDays: Math.round(avg * 10) / 10, totalMoves: times.length };
@@ -196,7 +225,8 @@ export async function getVelocityData(): Promise<VelocityData[]> {
     dealLastMove[a.deal_id] = { stage: toStage, time };
   });
 
-  return DEAL_STAGES.filter((s) => !s.startsWith('Fechado')).map((stage) => {
+  const stages = mergeStageNames(configuredStages, Object.keys(stageMovements)).filter((stage) => !isClosedStage(stage));
+  return stages.map((stage) => {
     const times = stageMovements[stage] ?? [];
     const avg = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
     return { stage, avgDays: Math.round(avg * 10) / 10, totalMoves: times.length };
