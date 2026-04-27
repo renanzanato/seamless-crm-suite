@@ -284,3 +284,43 @@ export interface DealStateSnapshot {
   captured_at: string;
 }
 
+// ── Reply Intelligence (Track H) ─────────────────────────
+
+export const REPLY_CLASSIFICATIONS = [
+  'positive_intent', 'meeting_requested', 'not_now', 'not_interested',
+  'out_of_office', 'wrong_person', 'referral', 'unsubscribe_request', 'unclear',
+] as const;
+
+export type ReplyClassification = typeof REPLY_CLASSIFICATIONS[number];
+
+export const REPLY_CLASSIFICATION_LABELS: Record<ReplyClassification, string> = {
+  positive_intent: 'Interesse positivo',
+  meeting_requested: 'Reunião solicitada',
+  not_now: 'Não agora',
+  not_interested: 'Sem interesse',
+  out_of_office: 'Fora do escritório',
+  wrong_person: 'Pessoa errada',
+  referral: 'Indicação',
+  unsubscribe_request: 'Descadastrar',
+  unclear: 'Incerto',
+};
+
+export const SUPPRESSION_REASONS = [
+  'unsubscribe', 'not_interested', 'wrong_person', 'manual', 'bounce',
+] as const;
+
+export type SuppressionReason = typeof SUPPRESSION_REASONS[number];
+
+export interface SuppressionEntry {
+  id: string;
+  account_id: string;
+  contact_id: string | null;
+  wa_phone_e164: string | null;
+  reason: SuppressionReason;
+  source_activity_id: string | null;
+  created_at: string;
+  created_by: string | null;
+  expires_at: string | null;
+}
+
+
