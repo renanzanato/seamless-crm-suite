@@ -19,6 +19,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { PageErrorState } from '@/components/states/PageState';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StepNode } from '@/components/sequence-builder/StepNode';
 import { StepPalette } from '@/components/sequence-builder/StepPalette';
@@ -33,6 +34,8 @@ import {
 } from '@/services/sequencesV2Service';
 import type { StepEdgeV2, StepType, StepV2 } from '@/services/sequencesV2Service';
 import { getSequence } from '@/services/sequencesService';
+import { getDealStageOptions } from '@/services/crmService';
+import type { SequenceTriggerType } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Node types
@@ -255,6 +258,8 @@ export default function SequenceBuilderV2() {
 
   const [seqName, setSeqName] = useState('Nova Sequência');
   const [seqChannel, setSeqChannel] = useState<'whatsapp' | 'email' | 'both'>('both');
+  const [triggerType, setTriggerType] = useState<Extract<SequenceTriggerType, 'manual' | 'stage_change'>>('manual');
+  const [triggerStageId, setTriggerStageId] = useState('');
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('builder');
 
@@ -286,10 +291,19 @@ export default function SequenceBuilderV2() {
     enabled: !isNew,
   });
 
+  const { data: stageOptions = [], isLoading: loadingStages } = useQuery({
+    queryKey: ['deal-stage-options', 'sequence-trigger'],
+    queryFn: () => getDealStageOptions(),
+  });
+
   useEffect(() => {
     if (existingSequence) {
       setSeqName(existingSequence.name);
       setSeqChannel(existingSequence.channel ?? 'both');
+      const config = existingSequence.trigger_config ?? {};
+      const stageId = typeof config.stage_id === 'string' ? config.stage_id : '';
+      setTriggerType(existingSequence.trigger_type === 'stage_change' ? 'stage_change' : 'manual');
+      setTriggerStageId(stageId);
     }
   }, [existingSequence]);
 
@@ -388,12 +402,19 @@ export default function SequenceBuilderV2() {
       if (validationErrors.length > 0) {
         throw new Error(validationErrors[0]);
       }
+      if (triggerType === 'stage_change' && !triggerStageId) {
+        throw new Error('Escolha a etapa que dispara esta sequência.');
+      }
 
       // Upsert sequence
       const seq = await upsertSequenceV2({
         id: isNew ? undefined : id,
         name: seqName,
         channel: seqChannel,
+        trigger_type: triggerType,
+        trigger_config: triggerType === 'stage_change'
+          ? { stage_id: triggerStageId }
+          : {},
       });
 
       // Upsert steps
@@ -489,6 +510,48 @@ export default function SequenceBuilderV2() {
             )}
             Salvar
           </Button>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-md border border-border bg-card/40 px-3 py-3">
+        <div className="min-w-[220px]">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">Disparo</div>
+          <Select
+            value={triggerType}
+            onValueChange={(value) => setTriggerType(value as typeof triggerType)}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="manual">Manual</SelectItem>
+              <SelectItem value="stage_change">Ao mover deal para etapa</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="min-w-[260px]">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">Etapa do pipeline</div>
+          <Select
+            value={triggerStageId || undefined}
+            onValueChange={setTriggerStageId}
+            disabled={triggerType !== 'stage_change' || loadingStages}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder={loadingStages ? 'Carregando etapas...' : 'Selecione a etapa'} />
+            </SelectTrigger>
+            <SelectContent>
+              {stageOptions.length === 0 ? (
+                <SelectItem value="__empty__" disabled>Nenhuma etapa encontrada</SelectItem>
+              ) : (
+                stageOptions.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}{stage.funnel?.name ? ` · ${stage.funnel.name}` : ''}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

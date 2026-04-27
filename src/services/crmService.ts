@@ -437,7 +437,21 @@ export async function updateDeal(id: string, payload: Partial<Omit<Deal, 'id' | 
   const row = throwOnError(
     await supabase.from('deals').update(prepared).eq('id', id).select(DEAL_SELECT).single()
   ) as unknown as DealRow;
-  return normalizeDeal(row);
+  const deal = normalizeDeal(row);
+
+  if (typeof prepared.stage_id === 'string' && prepared.stage_id) {
+    const { error } = await supabase.functions.invoke('handle-stage-change', {
+      body: {
+        deal_id: id,
+        next_stage_id: prepared.stage_id,
+      },
+    });
+    if (error) {
+      console.warn('[crmService] handle-stage-change failed:', error.message);
+    }
+  }
+
+  return deal;
 }
 
 export async function deleteDeal(id: string): Promise<void> {

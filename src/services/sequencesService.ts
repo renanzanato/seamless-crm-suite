@@ -29,7 +29,7 @@ export async function listStages(funnelId: string): Promise<FunnelStage[]> {
 // ── Sequences ────────────────────────────────────────────
 
 const BASE_SEQUENCE_SELECT = 'id, name, funnel_id, stage_id, active, created_at';
-const V2_SEQUENCE_SELECT = `${BASE_SEQUENCE_SELECT}, channel, stop_on_reply, max_enrollments_per_day`;
+const V2_SEQUENCE_SELECT = `${BASE_SEQUENCE_SELECT}, channel, trigger_type, trigger_config, target_role, stop_on_reply, max_enrollments_per_day`;
 
 type SequenceHeaderRow = Omit<Sequence, 'steps' | 'steps_v2' | 'funnel' | 'stage'>;
 

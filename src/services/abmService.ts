@@ -80,6 +80,26 @@ export interface CadenceTrack {
   sequence?: { id: string; name: string; channel: string | null } | null;
 }
 
+export interface ProposedEnrollment {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  sequence_id: string;
+  reason: string;
+  priority: number | null;
+  status: "pending" | "accepted" | "rejected" | "expired";
+  created_at: string;
+  resolved_at: string | null;
+  contact?: {
+    id: string;
+    name: string;
+    role: string | null;
+    company_id: string | null;
+    company?: { id: string; name: string } | null;
+  } | null;
+  sequence?: { id: string; name: string; channel: string | null } | null;
+}
+
 export interface AccountSignal {
   id: string;
   company_id: string;
@@ -782,6 +802,135 @@ export async function startSequenceCadenceForContacts(payload: StartSequenceCade
   if (updateCompanyError) throw updateCompanyError;
 
   return rows.length + pausedIds.length;
+}
+
+export async function getProposedEnrollments(limit = 100): Promise<ProposedEnrollment[]> {
+  const { data: proposals, error } = await supabase
+    .from("proposed_enrollments")
+    .select("*")
+    .eq("status", "pending")
+    .order("priority", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  const proposalRows = (proposals ?? []) as ProposedEnrollment[];
+  const contactIds = [...new Set(proposalRows.map((proposal) => proposal.contact_id).filter(Boolean))];
+  const sequenceIds = [...new Set(proposalRows.map((proposal) => proposal.sequence_id).filter(Boolean))];
+
+  const [{ data: contacts, error: contactsError }, { data: sequences, error: sequencesError }] = await Promise.all([
+    contactIds.length > 0
+      ? supabase.from("contacts").select("id, name, role, company_id").in("id", contactIds)
+      : Promise.resolve({ data: [], error: null }),
+    sequenceIds.length > 0
+      ? supabase.from("sequences").select("id, name, channel").in("id", sequenceIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (contactsError) throw contactsError;
+  if (sequencesError) throw sequencesError;
+
+  const companyIds = [
+    ...new Set(
+      (contacts ?? [])
+        .map((contact: Record<string, unknown>) => (typeof contact.company_id === "string" ? contact.company_id : ""))
+        .filter(Boolean),
+    ),
+  ];
+  const { data: companies, error: companiesError } = companyIds.length > 0
+    ? await supabase.from("companies").select("id, name").in("id", companyIds)
+    : { data: [], error: null };
+  if (companiesError) throw companiesError;
+
+  const companyById = new Map((companies ?? []).map((company: Record<string, unknown>) => [company.id, company]));
+  const contactById = new Map(
+    (contacts ?? []).map((contact: Record<string, unknown>) => {
+      const companyId = typeof contact.company_id === "string" ? contact.company_id : "";
+      return [
+        contact.id,
+        {
+          ...contact,
+          company: companyId ? companyById.get(companyId) ?? null : null,
+        },
+      ];
+    }),
+  );
+  const sequenceById = new Map((sequences ?? []).map((sequence: Record<string, unknown>) => [sequence.id, sequence]));
+
+  return proposalRows.map((proposal) => ({
+    ...proposal,
+    contact: contactById.get(proposal.contact_id) as ProposedEnrollment["contact"] ?? null,
+    sequence: sequenceById.get(proposal.sequence_id) as ProposedEnrollment["sequence"] ?? null,
+  }));
+}
+
+export async function acceptProposedEnrollment(id: string): Promise<void> {
+  const { data: proposal, error } = await supabase
+    .from("proposed_enrollments")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+
+  const row = proposal as ProposedEnrollment;
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts")
+    .select("id, name, role, company_id, company:companies(id, name)")
+    .eq("id", row.contact_id)
+    .single();
+  if (contactError) throw contactError;
+
+  const contactRow = contact as unknown as {
+    id: string;
+    name: string;
+    role: string | null;
+    company_id: string | null;
+    company?: { id: string; name: string } | null;
+  };
+  if (!contactRow.company_id) throw new Error("Contato sem empresa vinculada.");
+
+  await startSequenceCadenceForContacts({
+    companyId: contactRow.company_id,
+    companyName: contactRow.company?.name ?? "Conta",
+    sequenceId: row.sequence_id,
+    contacts: [{ id: contactRow.id, name: contactRow.name, role: contactRow.role }],
+    startDate: new Date(),
+  });
+
+  const { data: user } = await supabase.auth.getUser();
+  const { error: updateError } = await supabase
+    .from("proposed_enrollments")
+    .update({
+      status: "accepted",
+      resolved_by: user.user?.id ?? null,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (updateError) throw updateError;
+}
+
+export async function rejectProposedEnrollment(id: string): Promise<void> {
+  const { data: user } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from("proposed_enrollments")
+    .update({
+      status: "rejected",
+      resolved_by: user.user?.id ?? null,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function generateProposedEnrollments(limit = 50): Promise<{ created: number; skipped: number }> {
+  const { data, error } = await supabase.functions.invoke("propose-enrollments-fill-pace", {
+    body: { limit },
+  });
+  if (error) throw error;
+  const payload = (data ?? {}) as { created?: number; skipped?: number };
+  return {
+    created: Number(payload.created ?? 0),
+    skipped: Number(payload.skipped ?? 0),
+  };
 }
 
 // ── Dashboard stats ──────────────────────────────────────

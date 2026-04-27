@@ -182,6 +182,7 @@ export interface FunnelStage {
 }
 
 export type SequenceChannel = 'whatsapp' | 'email' | 'both';
+export type SequenceTriggerType = 'manual' | 'stage_change' | 'signal_threshold' | 'recurring' | 'date_anchored';
 
 export interface SequenceStep {
   id: string;
@@ -198,6 +199,9 @@ export interface Sequence {
   funnel_id: string | null;
   stage_id: string | null;
   channel?: SequenceChannel | null;
+  trigger_type?: SequenceTriggerType | null;
+  trigger_config?: Record<string, unknown> | null;
+  target_role?: string | null;
   stop_on_reply?: boolean | null;
   max_enrollments_per_day?: number | null;
   active: boolean;
@@ -322,5 +326,4 @@ export interface SuppressionEntry {
   created_by: string | null;
   expires_at: string | null;
 }
-
 

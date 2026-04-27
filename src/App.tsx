@@ -25,6 +25,7 @@ import Settings from "./pages/Settings.tsx";
 import SequenceBuilderV2 from "./pages/SequenceBuilderV2.tsx";
 import RespostasParaRevisar from "./pages/RespostasParaRevisar.tsx";
 import ExtracoesParaRevisar from "./pages/ExtracoesParaRevisar.tsx";
+import EnrollmentsPropostos from "./pages/EnrollmentsPropostos.tsx";
 import PipelineCompare from "./pages/PipelineCompare.tsx";
 import ExtensaoSaude from "./pages/ExtensaoSaude.tsx";
 import DeliverabilityPage from "./pages/DeliverabilityPage.tsx";
@@ -61,6 +62,7 @@ const App = () => (
               {/* Intelligence */}
               <Route path="/respostas-revisar" element={<RespostasParaRevisar />} />
               <Route path="/extracoes" element={<ExtracoesParaRevisar />} />
+              <Route path="/enrollments/propostos" element={<EnrollmentsPropostos />} />
               <Route path="/pipeline/compare" element={<PipelineCompare />} />
 
               {/* Admin-only */}

@@ -21,6 +21,7 @@ import {
   ArrowLeftRight,
   Monitor,
   Shield,
+  SendHorizontal,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from '@tanstack/react-query';
@@ -62,6 +63,7 @@ const navSections: NavSection[] = [
     items: [
       { title: "Respostas",     url: "/respostas-revisar", icon: Brain },
       { title: "Extrações",     url: "/extracoes",          icon: FileSearch },
+      { title: "Enrollments",   url: "/enrollments/propostos", icon: SendHorizontal },
       { title: "Pipeline Compare", url: "/pipeline/compare", icon: ArrowLeftRight },
       { title: "Extensão",      url: "/extensao/saude",     icon: Monitor, adminOnly: true },
       { title: "Deliverability", url: "/deliverability",     icon: Shield, adminOnly: true },

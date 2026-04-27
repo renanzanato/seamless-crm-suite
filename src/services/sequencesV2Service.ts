@@ -255,24 +255,33 @@ export interface SequenceHeader {
   name: string;
   channel?: string;
   active?: boolean;
+  trigger_type?: string | null;
+  trigger_config?: Record<string, unknown> | null;
+  target_role?: string | null;
 }
 
 export async function upsertSequenceV2(params: {
   id?: string;
   name: string;
   channel?: 'whatsapp' | 'email' | 'both';
+  trigger_type?: 'manual' | 'stage_change' | 'signal_threshold' | 'recurring' | 'date_anchored';
+  trigger_config?: Record<string, unknown>;
+  target_role?: string | null;
 }): Promise<SequenceHeader> {
   const payload: Record<string, unknown> = {
     name: params.name,
     active: true,
   };
   if (params.channel) payload.channel = params.channel;
+  if (params.trigger_type) payload.trigger_type = params.trigger_type;
+  if (params.trigger_config) payload.trigger_config = params.trigger_config;
+  if (params.target_role !== undefined) payload.target_role = params.target_role;
   if (params.id) payload.id = params.id;
 
   const { data, error } = await supabase
     .from('sequences')
     .upsert(payload)
-    .select('id, name, channel, active')
+    .select('id, name, channel, active, trigger_type, trigger_config, target_role')
     .single();
   if (error) throw error;
   return data as SequenceHeader;
