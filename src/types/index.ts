@@ -213,3 +213,74 @@ export interface Sequence {
     config: Record<string, unknown>;
   }>;
 }
+
+// ── Pipeline Engine (Track I) ─────────────────────────────
+
+export const BUYING_ROLES = [
+  'decision_maker', 'economic_buyer', 'champion', 'influencer', 'user',
+  'technical', 'legal', 'finance', 'blocker', 'unknown',
+] as const;
+
+export type BuyingRole = typeof BUYING_ROLES[number];
+
+export const BUYING_ROLE_LABELS: Record<BuyingRole, string> = {
+  decision_maker: 'Decisor',
+  economic_buyer: 'Comprador Econômico',
+  champion: 'Champion',
+  influencer: 'Influenciador',
+  user: 'Usuário',
+  technical: 'Técnico',
+  legal: 'Jurídico',
+  finance: 'Financeiro',
+  blocker: 'Bloqueador',
+  unknown: 'Desconhecido',
+};
+
+export interface DealContact {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  contact_id: string;
+  buying_role: BuyingRole;
+  role_confidence: number;
+  engagement_score: number;
+  added_at: string;
+  added_by: string | null;
+  removed_at: string | null;
+  // Joined
+  contact?: Pick<Contact, 'id' | 'name' | 'role' | 'email' | 'whatsapp'> | null;
+}
+
+export type QuotaPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly';
+
+export interface Quota {
+  id: string;
+  account_id: string;
+  user_id: string | null;
+  period_type: QuotaPeriod;
+  period_start: string;
+  period_end: string;
+  meetings_target: number;
+  pipeline_target_brl: number;
+  revenue_target_brl: number;
+  created_at: string;
+}
+
+export interface QuotaPacing extends Quota {
+  bdr: number; // business_days_remaining
+  meetings_held: number;
+  attainment_pct: number | null;
+}
+
+export interface DealStateSnapshot {
+  id: number;
+  account_id: string;
+  snapshot_date: string;
+  deal_id: string;
+  stage: string | null;
+  value_brl: number | null;
+  owner_id: string | null;
+  momentum: number | null;
+  captured_at: string;
+}
+

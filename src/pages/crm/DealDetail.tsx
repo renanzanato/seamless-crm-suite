@@ -28,6 +28,7 @@ import { LogCallModal } from '@/components/activities/LogCallModal';
 import { CreateTaskModal } from '@/components/activities/CreateTaskModal';
 import { DealForm } from '@/components/crm/DealForm';
 import { InlineEdit, type InlineEditValue } from '@/components/crm/InlineEdit';
+import { BuyingCommitteePanel } from '@/components/crm/BuyingCommitteePanel';
 import { Can } from '@/components/Can';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -509,6 +510,7 @@ export default function DealDetail() {
         </main>
 
         <aside className="space-y-4">
+          <BuyingCommitteePanel dealId={deal.id} />
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
