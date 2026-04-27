@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { Can } from "@/components/Can";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageTransition } from "@/components/PageTransition";
 import { DealForm } from "@/components/crm/DealForm";
@@ -52,10 +53,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { deleteDeal, getDeals as getCrmDeals, getProfiles } from "@/services/crmService";
 import {
-  getDeals as getFunnelDeals,
   getFunnels,
   getStages,
-  type Deal as FunnelDeal,
   type Funnel,
   type Stage,
 } from "@/services/funnelService";
@@ -98,7 +97,7 @@ export default function PipelinePage() {
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [boardStages, setBoardStages] = useState<Stage[]>([]);
-  const [boardDeals, setBoardDeals] = useState<FunnelDeal[]>([]);
+  const [boardDeals, setBoardDeals] = useState<Deal[]>([]);
   const [boardLoading, setBoardLoading] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -129,20 +128,23 @@ export default function PipelinePage() {
 
 
   useEffect(() => {
-    getFunnels().then((data) => {
-      setFunnels(data);
-      if (!selectedFunnelId && data.length > 0) setSelectedFunnelId(data[0].id);
-    });
+    getFunnels()
+      .then((data) => {
+        setFunnels(data);
+        if (!selectedFunnelId && data.length > 0) setSelectedFunnelId(data[0].id);
+      })
+      .catch((err: Error) => toast.error("Erro ao carregar funis: " + err.message));
   }, [selectedFunnelId]);
 
   useEffect(() => {
     if (!selectedFunnelId || activeTab !== "kanban") return;
     setBoardLoading(true);
-    Promise.all([getStages(selectedFunnelId), getFunnelDeals(selectedFunnelId)])
+    Promise.all([getStages(selectedFunnelId), getCrmDeals({ funnelId: selectedFunnelId })])
       .then(([stages, dealsFromFunnel]) => {
         setBoardStages(stages);
         setBoardDeals(dealsFromFunnel);
       })
+      .catch((err: Error) => toast.error("Erro ao carregar kanban: " + err.message))
       .finally(() => setBoardLoading(false));
   }, [selectedFunnelId, activeTab]);
 
@@ -317,7 +319,12 @@ export default function PipelinePage() {
           {boardLoading ? <Skeleton className="h-96 rounded-xl" /> : boardStages.length === 0 ? (
             <div className="flex h-64 items-center justify-center rounded-xl border text-sm text-muted-foreground">Nenhum estágio configurado para este funil.</div>
           ) : (
-            <KanbanBoard stages={boardStages} deals={boardDeals} onDealsChange={setBoardDeals} />
+            <KanbanBoard
+              stages={boardStages}
+              deals={boardDeals}
+              onDealsChange={setBoardDeals}
+              onDealMoved={() => qc.invalidateQueries({ queryKey: ["deals"] })}
+            />
           )}
         </TabsContent>
 

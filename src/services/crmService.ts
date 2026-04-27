@@ -305,7 +305,7 @@ export async function getContactRelations(
 
   return {
     company: (companyRes.data as ContactCompanySummary | null) ?? null,
-    deals: ((dealsRes.data ?? []) as Array<ContactDealSummary & { stage_ref?: { name: string | null } | null }>).map((deal) => ({
+    deals: ((dealsRes.data ?? []) as unknown as Array<Omit<ContactDealSummary, 'stage_name'> & { stage_ref?: { name: string | null } | null }>).map((deal) => ({
       ...deal,
       stage_name: deal.stage_ref?.name ?? 'Qualificação',
     })),
@@ -375,12 +375,13 @@ export async function importContacts(
 }
 
 // ── Deals ─────────────────────────────────────────────────────────────────────
-export async function getDeals(params: { search?: string; stageName?: string; ownerId?: string } = {}): Promise<Deal[]> {
+export async function getDeals(params: { search?: string; stageName?: string; ownerId?: string; funnelId?: string } = {}): Promise<Deal[]> {
   let q = supabase.from('deals').select(DEAL_SELECT).order('created_at', { ascending: false });
 
   if (params.search) q = q.ilike('title', `%${params.search}%`);
+  if (params.funnelId) q = q.eq('funnel_id', params.funnelId);
   if (params.stageName) {
-    const stageId = await resolveStageIdByName(params.stageName);
+    const stageId = await resolveStageIdByName(params.stageName, params.funnelId ?? null);
     if (!stageId) return [];
     q = q.eq('stage_id', stageId);
   }
