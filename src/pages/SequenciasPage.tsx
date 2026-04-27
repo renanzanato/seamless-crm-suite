@@ -47,6 +47,7 @@ import {
   runSequenceWorker,
   setCadenceTrackStatus,
   startCadenceForContacts,
+  startSequenceCadenceForContacts,
   type CadenceTrack,
   type CadenceTrackStatus,
 } from "@/services/abmService";
@@ -181,7 +182,8 @@ function TracksTable({
       <TableBody>
         {tracks.map((track) => {
           const nextStep = getNextStep(track);
-          const Icon = nextStep ? CHANNEL_ICON[nextStep.channel] : CheckCircle2;
+          const isVisualSequence = Boolean(track.sequence_id);
+          const Icon = isVisualSequence ? Workflow : nextStep ? CHANNEL_ICON[nextStep.channel] : CheckCircle2;
           const canToggle = track.status === "active" || track.status === "paused";
           return (
             <TableRow key={track.id}>
@@ -206,8 +208,16 @@ function TracksTable({
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4 text-primary" />
                   <div>
-                    <p className="text-sm font-medium">{nextStep?.label ?? "Cadencia concluida"}</p>
-                    {nextStep && (
+                    <p className="text-sm font-medium">
+                      {isVisualSequence
+                        ? track.sequence?.name ?? "Sequência visual"
+                        : nextStep?.label ?? "Cadencia concluida"}
+                    </p>
+                    {isVisualSequence ? (
+                      <p className="text-xs text-muted-foreground">
+                        Posição {track.position ?? 0} · {track.sequence?.channel ?? track.channel}
+                      </p>
+                    ) : nextStep && (
                       <p className="text-xs text-muted-foreground">
                         Dia {nextStep.day} · Bloco {nextStep.block} · {nextStep.channel}
                       </p>
@@ -294,7 +304,8 @@ export default function SequenciasPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [companyId, setCompanyId] = useState("");
-  const [contactId, setContactId] = useState("");
+  const [contactId, setContactId] = useState("__all__");
+  const [sequenceId, setSequenceId] = useState("__pipa__");
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
 
   const { data: companies = [], isLoading: loadingCompanies, isError: companiesError, error: companiesLoadError } = useQuery({
@@ -331,7 +342,7 @@ export default function SequenciasPage() {
   ].find(Boolean) as Error | undefined;
 
   useEffect(() => {
-    setContactId("");
+    setContactId("__all__");
   }, [companyId]);
 
   const contactsWithPersona = useMemo(() => {
@@ -340,6 +351,23 @@ export default function SequenciasPage() {
       persona: inferPersonaFromRole(contact.role),
     }));
   }, [contacts]);
+
+  const selectedContacts = useMemo(() => {
+    if (contactId === "__all__") {
+      return contacts.map((contact) => ({
+        id: contact.id,
+        name: contact.name,
+        role: contact.role,
+      }));
+    }
+    return selectedContact
+      ? [{
+        id: selectedContact.id,
+        name: selectedContact.name,
+        role: selectedContact.role,
+      }]
+      : [];
+  }, [contactId, contacts, selectedContact]);
 
   const refreshSequences = () =>
     Promise.all([
@@ -351,21 +379,30 @@ export default function SequenciasPage() {
 
   const enrollMutation = useMutation({
     mutationFn: () => {
-      if (!selectedCompany || !selectedContact) throw new Error("Selecione empresa e contato.");
+      if (!selectedCompany) throw new Error("Selecione uma empresa.");
+      if (selectedContacts.length === 0) throw new Error("Selecione pelo menos um contato.");
+      if (sequenceId !== "__pipa__") {
+        return startSequenceCadenceForContacts({
+          sequenceId,
+          companyId: selectedCompany.id,
+          companyName: selectedCompany.name,
+          contacts: selectedContacts,
+        });
+      }
       return startCadenceForContacts({
         companyId: selectedCompany.id,
         companyName: selectedCompany.name,
-        contacts: [{
-          id: selectedContact.id,
-          name: selectedContact.name,
-          role: selectedContact.role,
-        }],
+        contacts: selectedContacts,
       });
     },
-    onSuccess: async (createdTasks) => {
+    onSuccess: async (createdCount) => {
       await refreshSequences();
-      setContactId("");
-      toast.success(`Enroll criado. ${createdTasks} tarefa(s) geradas para hoje.`);
+      setContactId("__all__");
+      toast.success(
+        sequenceId === "__pipa__"
+          ? `Enroll criado. ${createdCount} tarefa(s) geradas para hoje.`
+          : `${createdCount} contato(s) enrolado(s) na sequência visual.`,
+      );
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -468,6 +505,20 @@ export default function SequenciasPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
+                <Select value={sequenceId} onValueChange={setSequenceId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sequência" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__pipa__">PIPA 21 dias (playbook)</SelectItem>
+                    {sequences.map((sequence) => (
+                      <SelectItem key={sequence.id} value={sequence.id}>
+                        {sequence.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Select value={companyId || "__none__"} onValueChange={(value) => setCompanyId(value === "__none__" ? "" : value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Empresa" />
@@ -495,7 +546,7 @@ export default function SequenciasPage() {
                     <SelectValue placeholder="Contato" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">Selecione um contato</SelectItem>
+                    <SelectItem value="__all__">Todos os contatos da empresa</SelectItem>
                     {contactsWithPersona.map(({ contact, persona }) => (
                       <SelectItem key={contact.id} value={contact.id}>
                         {contact.name} · {PERSONA_PLAYBOOK[persona].label}
@@ -504,7 +555,16 @@ export default function SequenciasPage() {
                   </SelectContent>
                 </Select>
 
-                {selectedContact && (
+                {contactId === "__all__" && selectedCompany && (
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                    <p className="font-medium">{selectedContacts.length} contato(s) selecionado(s)</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      A sequência respeita duplicidade e supressão por contato.
+                    </p>
+                  </div>
+                )}
+
+                {contactId !== "__all__" && selectedContact && (
                   <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                     <p className="font-medium">{selectedContact.name}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -515,7 +575,7 @@ export default function SequenciasPage() {
 
                 <Button
                   className="w-full gap-2"
-                  disabled={!selectedCompany || !selectedContact || enrollMutation.isPending}
+                  disabled={!selectedCompany || selectedContacts.length === 0 || enrollMutation.isPending}
                   onClick={() => enrollMutation.mutate()}
                 >
                   <Sparkles className="h-4 w-4" />

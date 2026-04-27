@@ -112,6 +112,60 @@ function renderTemplate(
   };
 }
 
+function nextBusinessMorning(dateText: string | null | undefined) {
+  if (!dateText) return null;
+  const date = new Date(`${dateText}T12:00:00.000Z`); // 09:00 America/Sao_Paulo
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function dailyTaskTypeForStep(stepType: string) {
+  const map: Record<string, string> = {
+    whatsapp_task: 'send_whatsapp',
+    email_manual: 'send_email',
+    call_task: 'make_call',
+    linkedin_task: 'send_linkedin',
+  };
+  return map[stepType] ?? 'followup';
+}
+
+async function insertManualDailyTask(supabase: ReturnType<typeof createClient>, params: {
+  enrollment: any;
+  step: any;
+  body: string;
+  dueDate: string;
+}) {
+  const taskType = dailyTaskTypeForStep(params.step.step_type);
+  const { data: existing, error: existingError } = await supabase
+    .from('daily_tasks')
+    .select('id')
+    .eq('cadence_track_id', params.enrollment.id)
+    .eq('cadence_day', params.step.position + 1)
+    .eq('task_type', taskType)
+    .limit(1);
+  if (existingError) {
+    console.warn('[sequence-worker-v2] daily_tasks lookup failed:', existingError.message);
+    return;
+  }
+  if (existing && existing.length > 0) return;
+
+  const { error } = await supabase.from('daily_tasks').insert({
+    company_id: params.enrollment.company_id,
+    contact_id: params.enrollment.contact_id,
+    cadence_track_id: params.enrollment.id,
+    task_type: taskType,
+    persona_type: params.enrollment.persona_type ?? 'other',
+    cadence_day: params.step.position + 1,
+    block_number: 1,
+    generated_message: params.body,
+    urgency: 'today',
+    due_date: params.dueDate,
+    status: 'pending',
+  });
+  if (error) {
+    console.warn('[sequence-worker-v2] daily_tasks insert failed:', error.message);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main Worker
 // ---------------------------------------------------------------------------
@@ -125,14 +179,24 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     );
 
+    const now = new Date();
+
+    await supabase
+      .from('cadence_tracks')
+      .update({ status: 'active', paused_until: null })
+      .eq('status', 'paused')
+      .lte('paused_until', now.toISOString());
+
     // ── 1. Fetch active enrollments ──────────────────────────
     const { data: enrollments, error: enrollErr } = await supabase
       .from('cadence_tracks')
       .select(`
-        id, contact_id, sequence_id, position, status,
+        id, company_id, contact_id, owner_id, sequence_id, position, status, last_step_at,
+        created_at, enrolled_at, paused_until, persona_type,
         contact:contacts(id, name, email, whatsapp, role, company_id)
       `)
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .not('sequence_id', 'is', null);
 
     if (enrollErr) throw enrollErr;
     if (!enrollments || enrollments.length === 0) {
@@ -146,7 +210,7 @@ serve(async (req) => {
     const companyIds = [
       ...new Set(
         enrollments
-          .map((e: any) => (e.contact as any)?.company_id)
+          .map((e: any) => (e.contact as any)?.company_id ?? e.company_id)
           .filter(Boolean),
       ),
     ];
@@ -191,7 +255,6 @@ serve(async (req) => {
     );
 
     let processed = 0;
-    const now = new Date();
 
     function nextPosition(currentStep: any, sourceHandle: string | null, fallback: number) {
       const candidates = edgesBySource[currentStep.id] ?? [];
@@ -234,24 +297,88 @@ serve(async (req) => {
       const lastRun = existingRuns?.[0];
       const seq = seqById[enrollment.sequence_id];
       const contact = enrollment.contact as any;
-      const company = contact?.company_id
-        ? companyById[contact.company_id]
+      if (!seq || !contact?.id) continue;
+      const companyId = contact?.company_id ?? enrollment.company_id;
+      const company = companyId
+        ? companyById[companyId]
         : null;
 
+      async function stopTrack(status: string, reason: string, extra: Record<string, unknown> = {}) {
+        await supabase
+          .from('cadence_tracks')
+          .update({
+            status,
+            completed_at: ['replied', 'completed', 'meeting_booked', 'proposal_sent', 'won', 'lost'].includes(status)
+              ? now.toISOString()
+              : null,
+            completion_reason: reason,
+            ...extra,
+          })
+          .eq('id', enrollment.id);
+      }
+
+      const { data: suppression } = await supabase
+        .from('suppression_list')
+        .select('id, reason')
+        .eq('contact_id', contact.id)
+        .limit(1);
+      if (suppression && suppression.length > 0) {
+        await stopTrack('lost', `suppressed:${suppression[0].reason}`);
+        processed++;
+        continue;
+      }
+
       // ── Check stop_on_reply ────────────────────────────────
-      if (seq?.stop_on_reply) {
-        const { data: replyCheck } = await supabase
+      const replyWindowStart = enrollment.last_step_at ?? enrollment.enrolled_at ?? enrollment.created_at;
+      const { data: replyCheck } = await supabase
+        .from('activities')
+        .select('id, body, reply_classification, parsed_return_date, occurred_at')
+        .eq('direction', 'in')
+        .eq('contact_id', contact.id)
+        .gte('occurred_at', replyWindowStart)
+        .order('occurred_at', { ascending: false })
+        .limit(1);
+
+      const latestReply = replyCheck?.[0] as any;
+      if (latestReply) {
+        const classification = latestReply.reply_classification;
+        if (classification === 'out_of_office') {
+          const pausedUntil = nextBusinessMorning(latestReply.parsed_return_date);
+          if (pausedUntil) {
+            await stopTrack('paused', 'out_of_office_pause', { paused_until: pausedUntil });
+            processed++;
+            continue;
+          }
+        }
+        if (['unsubscribe_request', 'not_interested'].includes(classification)) {
+          await stopTrack('lost', classification);
+          processed++;
+          continue;
+        }
+        if (classification === 'wrong_person') {
+          await stopTrack('completed', 'wrong_person');
+          processed++;
+          continue;
+        }
+        if (seq.stop_on_reply || ['positive_intent', 'meeting_requested'].includes(classification)) {
+          await stopTrack(
+            classification === 'meeting_requested' ? 'meeting_booked' : 'replied',
+            classification ?? 'replied',
+            { reply_received: latestReply.body ?? null },
+          );
+          processed++;
+          continue;
+        }
+      } else if (seq?.stop_on_reply) {
+        const { data: unclassifiedReply } = await supabase
           .from('activities')
           .select('id')
           .eq('direction', 'in')
           .eq('contact_id', contact.id)
-          .gte('occurred_at', enrollment.last_step_at ?? enrollment.created_at)
+          .gte('occurred_at', replyWindowStart)
           .limit(1);
-        if (replyCheck && replyCheck.length > 0) {
-          await supabase
-            .from('cadence_tracks')
-            .update({ status: 'unenrolled' })
-            .eq('id', enrollment.id);
+        if (unclassifiedReply && unclassifiedReply.length > 0) {
+          await stopTrack('replied', 'replied');
           processed++;
           continue;
         }
@@ -391,7 +518,7 @@ serve(async (req) => {
         linkedin_task: 'task',
       };
       const actKind = kindMap[currentStep.step_type] ?? 'task';
-      const isManualTask = ['call_task', 'linkedin_task', 'email_manual'].includes(
+      const isManualTask = ['call_task', 'linkedin_task', 'email_manual', 'whatsapp_task'].includes(
         currentStep.step_type,
       );
 
@@ -405,7 +532,7 @@ serve(async (req) => {
         direction: isManualTask ? null : 'out',
         occurred_at: now.toISOString(),
         contact_id: contact.id,
-        company_id: company?.id ?? null,
+        company_id: company?.id ?? enrollment.company_id ?? null,
         payload: {
           sequence_id: seq?.id,
           step_id: currentStep.id,
@@ -421,6 +548,15 @@ serve(async (req) => {
         },
       };
       await supabase.from('activities').insert(actPayload);
+
+      if (isManualTask && (company?.id ?? enrollment.company_id)) {
+        await insertManualDailyTask(supabase, {
+          enrollment,
+          step: currentStep,
+          body: rendered.body_rendered,
+          dueDate: now.toISOString().slice(0, 10),
+        });
+      }
 
       // Log run
       await supabase.from('sequence_step_runs').insert({

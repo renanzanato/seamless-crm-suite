@@ -59,6 +59,8 @@ export interface CadenceTrack {
   company_id: string;
   contact_id: string | null;
   owner_id: string | null;
+  sequence_id?: string | null;
+  position?: number | null;
   persona_type: PersonaType;
   cadence_day: number;
   block_number: number;
@@ -66,6 +68,8 @@ export interface CadenceTrack {
   status: CadenceTrackStatus;
   scheduled_for: string | null;
   completed_at: string | null;
+  paused_until?: string | null;
+  completion_reason?: string | null;
   message_sent: string | null;
   reply_received: string | null;
   enrolled_at: string | null;
@@ -73,6 +77,7 @@ export interface CadenceTrack {
   updated_at: string | null;
   company?: { id: string; name: string; buying_signal: BuyingSignal; cadence_status: string | null; cadence_day: number | null };
   contact?: { id: string; name: string; role: string | null; whatsapp: string | null; email: string | null } | null;
+  sequence?: { id: string; name: string; channel: string | null } | null;
 }
 
 export interface AccountSignal {
@@ -400,6 +405,22 @@ export interface StartAccountCadencePayload {
   startDate?: Date;
 }
 
+export interface StartSequenceCadencePayload extends StartAccountCadencePayload {
+  sequenceId: string;
+}
+
+async function getCurrentAccountId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error("Usuário não autenticado.");
+  const metadata = {
+    ...(data.user.app_metadata ?? {}),
+    ...(data.user.user_metadata ?? {}),
+  } as Record<string, unknown>;
+  return typeof metadata.account_id === "string" && metadata.account_id
+    ? metadata.account_id
+    : data.user.id;
+}
+
 function nextWorkingDate(date: Date) {
   let cursor = date;
   while (!isWorkingDay(cursor)) {
@@ -481,11 +502,12 @@ export async function getCadenceTracks(): Promise<CadenceTrack[]> {
   const { data, error } = await supabase
     .from("cadence_tracks")
     .select(`
-      id, company_id, contact_id, owner_id, persona_type, cadence_day, block_number, channel,
-      status, scheduled_for, completed_at, message_sent, reply_received,
+      id, company_id, contact_id, owner_id, sequence_id, position, persona_type, cadence_day, block_number, channel,
+      status, scheduled_for, completed_at, paused_until, completion_reason, message_sent, reply_received,
       enrolled_at, created_at, updated_at,
       company:companies(id, name, buying_signal, cadence_status, cadence_day),
-      contact:contacts(id, name, role, whatsapp, email)
+      contact:contacts(id, name, role, whatsapp, email),
+      sequence:sequences(id, name, channel)
     `)
     .order("enrolled_at", { ascending: false });
   if (error) {
@@ -514,16 +536,24 @@ export async function runSequenceWorker(): Promise<unknown> {
   const v2 = await supabase.functions.invoke("sequence-worker-v2", {
     body: { force: true },
   });
-  if (!v2.error) return v2.data;
 
-  console.warn("[abmService] sequence-worker-v2 failed, trying legacy worker:", v2.error.message);
+  if (v2.error) {
+    console.warn("[abmService] sequence-worker-v2 failed, trying legacy worker:", v2.error.message);
+  }
+
   const legacy = await supabase.functions.invoke("sequence-worker", {
     body: { force: true },
   });
-  if (legacy.error) {
+  if (legacy.error && v2.error) {
     throw new Error(`Worker v2: ${v2.error.message}; worker legado: ${legacy.error.message}`);
   }
-  return legacy.data;
+  if (legacy.error) {
+    console.warn("[abmService] legacy sequence-worker failed:", legacy.error.message);
+  }
+  return {
+    v2: v2.error ? { error: v2.error.message } : v2.data,
+    legacy: legacy.error ? { error: legacy.error.message } : legacy.data,
+  };
 }
 
 export async function startCadenceForContacts(payload: StartAccountCadencePayload): Promise<number> {
@@ -629,6 +659,129 @@ export async function startCadenceForContacts(payload: StartAccountCadencePayloa
   if (updateCompanyError) throw updateCompanyError;
 
   return createdTasks;
+}
+
+export async function startSequenceCadenceForContacts(payload: StartSequenceCadencePayload): Promise<number> {
+  if (!payload.companyId) throw new Error("Selecione uma conta.");
+  if (!payload.sequenceId) throw new Error("Selecione uma sequência.");
+  if (payload.contacts.length < 1) {
+    throw new Error("Selecione pelo menos 1 pessoa da conta para iniciar a sequência.");
+  }
+
+  const accountId = await getCurrentAccountId();
+  const startDate = payload.startDate ?? new Date();
+
+  const [{ data: sequence, error: sequenceError }, { data: steps, error: stepsError }] = await Promise.all([
+    supabase
+      .from("sequences")
+      .select("id, name, channel, active")
+      .eq("id", payload.sequenceId)
+      .maybeSingle(),
+    supabase
+      .from("sequence_steps_v2")
+      .select("id, position")
+      .eq("sequence_id", payload.sequenceId)
+      .order("position", { ascending: true }),
+  ]);
+
+  if (sequenceError) throw sequenceError;
+  if (stepsError) throw stepsError;
+  if (!sequence) throw new Error("Sequência não encontrada.");
+  const sequenceSteps = steps ?? [];
+  if (sequenceSteps.length === 0) throw new Error("A sequência precisa ter pelo menos um passo salvo.");
+
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select("id, name, owner_id")
+    .eq("id", payload.companyId)
+    .single();
+  if (companyError) throw companyError;
+
+  const contactIds = payload.contacts.map((contact) => contact.id);
+  const { data: suppressed, error: suppressedError } = await supabase
+    .from("suppression_list")
+    .select("contact_id")
+    .in("contact_id", contactIds);
+  if (suppressedError && !["42P01", "PGRST205"].includes(suppressedError.code ?? "")) {
+    throw suppressedError;
+  }
+
+  const suppressedIds = new Set((suppressed ?? []).map((entry) => entry.contact_id));
+  const { data: existingTracks, error: existingError } = await supabase
+    .from("cadence_tracks")
+    .select("id, contact_id, status")
+    .eq("sequence_id", payload.sequenceId)
+    .in("contact_id", contactIds)
+    .in("status", ["active", "paused"]);
+  if (existingError) throw existingError;
+
+  const existingByContact = new Map((existingTracks ?? []).map((track) => [track.contact_id, track]));
+  const initialPosition = Math.min(...sequenceSteps.map((step) => step.position));
+  const primaryChannel = sequence.channel === "email" ? "email" : "whatsapp";
+  const rows = payload.contacts
+    .filter((contact) => !suppressedIds.has(contact.id) && !existingByContact.has(contact.id))
+    .map((contact) => ({
+      company_id: payload.companyId,
+      contact_id: contact.id,
+      owner_id: company.owner_id,
+      sequence_id: payload.sequenceId,
+      position: initialPosition,
+      persona_type: inferPersonaFromRole(contact.role),
+      cadence_day: 1,
+      block_number: 1,
+      channel: primaryChannel,
+      status: "active",
+      scheduled_for: toDateKey(startDate),
+      enrolled_at: startDate.toISOString(),
+      paused_until: null,
+      completion_reason: null,
+    }));
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("cadence_tracks").insert(rows);
+    if (insertError) throw insertError;
+  }
+
+  const pausedIds = (existingTracks ?? [])
+    .filter((track) => track.status === "paused" && !suppressedIds.has(track.contact_id))
+    .map((track) => track.id);
+  if (pausedIds.length > 0) {
+    const { error: resumeError } = await supabase
+      .from("cadence_tracks")
+      .update({ status: "active", paused_until: null, completed_at: null, completion_reason: null })
+      .in("id", pausedIds);
+    if (resumeError) throw resumeError;
+  }
+
+  if (rows.length > 0) {
+    await supabase.from("activities").insert(rows.map((row) => ({
+      kind: "enrollment",
+      subject: `Entrou na sequência: ${sequence.name}`,
+      body: null,
+      direction: null,
+      occurred_at: startDate.toISOString(),
+      contact_id: row.contact_id,
+      company_id: row.company_id,
+      payload: {
+        source: "sequence_v2",
+        sequence_id: payload.sequenceId,
+        sequence_name: sequence.name,
+        account_id: accountId,
+      },
+    })));
+  }
+
+  const { error: updateCompanyError } = await supabase
+    .from("companies")
+    .update({
+      cadence_status: "active",
+      cadence_day: 1,
+      cadence_started_at: startDate.toISOString(),
+    })
+    .eq("id", payload.companyId);
+  if (updateCompanyError) throw updateCompanyError;
+
+  return rows.length + pausedIds.length;
 }
 
 // ── Dashboard stats ──────────────────────────────────────

@@ -120,7 +120,8 @@ Deno.serve(async (req) => {
         company:companies(id, name, owner_id),
         contact:contacts(id, name, role, email, whatsapp)
       `)
-      .eq("status", "active");
+      .eq("status", "active")
+      .is("sequence_id", null);
     if (tracksError) throw tracksError;
 
     const result = {
