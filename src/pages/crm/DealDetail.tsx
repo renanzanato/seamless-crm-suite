@@ -47,8 +47,8 @@ import {
   createStageChangeActivity,
   updateDealProperty,
 } from '@/services/activitiesService';
-import { getDeal, updateDeal } from '@/services/crmService';
-import { DEAL_STAGES, type Deal } from '@/types';
+import { getDeal, getDealStageOptions, updateDeal } from '@/services/crmService';
+import type { Deal } from '@/types';
 
 const STAGE_STYLE: Record<string, string> = {
   'Qualificação': 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
@@ -84,6 +84,8 @@ function stageClass(stage: string) {
   return STAGE_STYLE[stage] ?? 'bg-muted text-muted-foreground';
 }
 
+type StageChoice = { value: string; label: string; id: string | null };
+
 export default function DealDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -104,10 +106,31 @@ export default function DealDetail() {
     enabled: !!id,
   });
 
-  const stageOptions = useMemo(() => {
-    const current = deal?.stage_name ? [deal.stage_name] : [];
-    return Array.from(new Set([...current, ...DEAL_STAGES]));
-  }, [deal?.stage_name]);
+  const { data: fetchedStages = [] } = useQuery({
+    queryKey: ['deal-stage-options', deal?.funnel_id],
+    queryFn: () => getDealStageOptions({ funnelId: deal?.funnel_id }),
+    enabled: !!deal?.funnel_id,
+  });
+
+  const stageOptions = useMemo<StageChoice[]>(() => {
+    const choices = fetchedStages.map((stage) => ({
+      value: stage.id,
+      label: stage.name,
+      id: stage.id,
+    }));
+
+    if (deal?.stage_id && deal.stage_name && !choices.some((stage) => stage.id === deal.stage_id)) {
+      choices.unshift({ value: deal.stage_id, label: deal.stage_name, id: deal.stage_id });
+    } else if (!deal?.stage_id && deal?.stage_name && !choices.some((stage) => stage.label === deal.stage_name)) {
+      choices.unshift({ value: deal.stage_name, label: deal.stage_name, id: null });
+    }
+
+    return choices;
+  }, [deal?.stage_id, deal?.stage_name, fetchedStages]);
+
+  const currentStageValue = deal?.stage_id && stageOptions.some((stage) => stage.id === deal.stage_id)
+    ? deal.stage_id
+    : deal?.stage_name ?? '';
 
   const noteMutation = useMutation({
     mutationFn: (body: string) => createNoteActivity({
@@ -127,17 +150,22 @@ export default function DealDetail() {
   });
 
   const moveStageMutation = useMutation({
-    mutationFn: async (toStage: string) => {
+    mutationFn: async (toStageValue: string) => {
       if (!deal) throw new Error('Deal não carregado.');
       const fromStage = deal.stage_name;
-      const updated = await updateDeal(deal.id, { stage_name: toStage });
+      const toStage = stageOptions.find((stage) => stage.value === toStageValue);
+      if (!toStage) throw new Error('Selecione um estágio válido.');
+      const updated = await updateDeal(
+        deal.id,
+        toStage.id ? { stage_id: toStage.id } : { stage_name: toStage.label },
+      );
       await createStageChangeActivity({
         dealId: deal.id,
         contactId: deal.contact_id,
         companyId: deal.company_id,
         dealTitle: deal.title,
         fromStage,
-        toStage,
+        toStage: toStage.label,
         createdBy: actorId,
       });
       return updated;
@@ -158,7 +186,7 @@ export default function DealDetail() {
     newValue: InlineEditValue,
   ) => {
     if (!deal) throw new Error('Deal nao carregado.');
-    if (field === 'stage_name') {
+    if (field === 'stage_id') {
       await moveStageMutation.mutateAsync(String(newValue));
       return;
     }
@@ -239,7 +267,7 @@ export default function DealDetail() {
   }
 
   function openMoveStage() {
-    setStageDraft(deal.stage_name);
+    setStageDraft(currentStageValue);
     setStageOpen((open) => !open);
   }
 
@@ -363,13 +391,13 @@ export default function DealDetail() {
           <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-1.5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Novo estágio</p>
-              <Select value={stageDraft || deal.stage_name} onValueChange={setStageDraft}>
+              <Select value={stageDraft || currentStageValue} onValueChange={setStageDraft}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {stageOptions.map((stage) => (
-                    <SelectItem key={stage} value={stage}>{stage}</SelectItem>
+                    <SelectItem key={stage.value} value={stage.value}>{stage.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -381,8 +409,8 @@ export default function DealDetail() {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => moveStageMutation.mutate(stageDraft || deal.stage_name)}
-                disabled={moveStageMutation.isPending || (stageDraft || deal.stage_name) === deal.stage_name}
+                onClick={() => moveStageMutation.mutate(stageDraft || currentStageValue)}
+                disabled={moveStageMutation.isPending || (stageDraft || currentStageValue) === currentStageValue}
               >
                 {moveStageMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mover'}
               </Button>
@@ -496,11 +524,12 @@ export default function DealDetail() {
               />
               <InlineEdit
                 label="Stage"
-                value={deal.stage_name}
+                value={currentStageValue}
+                displayValue={deal.stage_name}
                 variant="select"
-                options={stageOptions.map((stage) => ({ value: stage, label: stage }))}
+                options={stageOptions.map((stage) => ({ value: stage.value, label: stage.label }))}
                 nullable={false}
-                onSave={(value) => saveDealProperty('stage_name', deal.stage_name, value)}
+                onSave={(value) => saveDealProperty('stage_id', currentStageValue, value)}
               />
               <InlineEdit
                 label="Valor"

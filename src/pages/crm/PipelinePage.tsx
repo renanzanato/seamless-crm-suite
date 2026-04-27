@@ -51,7 +51,7 @@ import {
 import { KanbanBoard } from "@/components/funil/KanbanBoard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
-import { deleteDeal, getDeals as getCrmDeals, getProfiles } from "@/services/crmService";
+import { deleteDeal, getDealStageOptions, getDeals as getCrmDeals, getProfiles } from "@/services/crmService";
 import {
   getFunnels,
   getStages,
@@ -59,7 +59,6 @@ import {
   type Stage,
 } from "@/services/funnelService";
 import type { Deal } from "@/types";
-import { DEAL_STAGES } from "@/types";
 
 const STAGE_COLORS: Record<string, string> = {
   "Qualificação": "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
@@ -112,9 +111,14 @@ export default function PipelinePage() {
     queryFn: () =>
       getCrmDeals({
         search,
-        stageName: stageFilter === "__all__" ? undefined : stageFilter,
+        stageId: stageFilter === "__all__" ? undefined : stageFilter,
         ownerId: ownerFilter === "__all__" ? undefined : ownerFilter,
       }),
+  });
+
+  const { data: stageOptions = [] } = useQuery({
+    queryKey: ["deal-stage-options"],
+    queryFn: () => getDealStageOptions(),
   });
 
   const { data: profiles = [] } = useQuery({
@@ -224,7 +228,11 @@ export default function PipelinePage() {
               <SelectTrigger className="w-48"><SelectValue placeholder="Todos os estágios" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Todos os estágios</SelectItem>
-                {DEAL_STAGES.map((stage) => <SelectItem key={stage} value={stage}>{stage}</SelectItem>)}
+                {stageOptions.map((stage) => (
+                  <SelectItem key={stage.id} value={stage.id}>
+                    {stage.name}{stage.funnel?.name ? ` · ${stage.funnel.name}` : ""}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {isAdmin && profiles.length > 0 && (

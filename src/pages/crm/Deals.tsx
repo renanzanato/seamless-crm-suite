@@ -19,11 +19,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getDeals, deleteDeal, getProfiles } from '@/services/crmService';
+import { getDealStageOptions, getDeals, deleteDeal, getProfiles } from '@/services/crmService';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import type { Deal } from '@/types';
-import { DEAL_STAGES } from '@/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -61,9 +60,14 @@ export default function Deals() {
     queryKey: ['deals', search, stageFilter, ownerFilter],
     queryFn: () => getDeals({
       search,
-      stageName: stageFilter === '__all__' ? undefined : stageFilter,
+      stageId: stageFilter === '__all__' ? undefined : stageFilter,
       ownerId: ownerFilter === '__all__' ? undefined : ownerFilter,
     }),
+  });
+
+  const { data: stageOptions = [] } = useQuery({
+    queryKey: ['deal-stage-options'],
+    queryFn: () => getDealStageOptions(),
   });
 
   const { data: profiles = [] } = useQuery({
@@ -132,8 +136,10 @@ export default function Deals() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos os estágios</SelectItem>
-            {DEAL_STAGES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+            {stageOptions.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}{s.funnel?.name ? ` · ${s.funnel.name}` : ''}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

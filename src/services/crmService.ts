@@ -14,6 +14,14 @@ function throwOnError<T>({ data, error }: { data: T | null; error: unknown }): T
 
 type DealStageRef = { id: string; name: string; color?: string | null; order?: number | null } | null;
 type DealRow = Omit<Deal, 'stage_name' | 'stage_ref'> & { stage_ref?: DealStageRef };
+export interface DealStageOption {
+  id: string;
+  name: string;
+  color: string | null;
+  funnel_id: string | null;
+  order: number | null;
+  funnel?: { name: string | null } | null;
+}
 
 function normalizeDeal(row: DealRow): Deal {
   return {
@@ -102,6 +110,19 @@ export async function getFunnels(): Promise<Funnel[]> {
     .order('name');
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getDealStageOptions(params: { funnelId?: string | null } = {}): Promise<DealStageOption[]> {
+  let q = supabase
+    .from('stages')
+    .select('id, name, color, funnel_id, order, funnel:funnels(name)')
+    .order('order', { ascending: true });
+
+  if (params.funnelId) q = q.eq('funnel_id', params.funnelId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as unknown as DealStageOption[];
 }
 
 // ── Companies ────────────────────────────────────────────────────────────────
@@ -375,11 +396,12 @@ export async function importContacts(
 }
 
 // ── Deals ─────────────────────────────────────────────────────────────────────
-export async function getDeals(params: { search?: string; stageName?: string; ownerId?: string; funnelId?: string } = {}): Promise<Deal[]> {
+export async function getDeals(params: { search?: string; stageName?: string; stageId?: string; ownerId?: string; funnelId?: string } = {}): Promise<Deal[]> {
   let q = supabase.from('deals').select(DEAL_SELECT).order('created_at', { ascending: false });
 
   if (params.search) q = q.ilike('title', `%${params.search}%`);
   if (params.funnelId) q = q.eq('funnel_id', params.funnelId);
+  if (params.stageId) q = q.eq('stage_id', params.stageId);
   if (params.stageName) {
     const stageId = await resolveStageIdByName(params.stageName, params.funnelId ?? null);
     if (!stageId) return [];

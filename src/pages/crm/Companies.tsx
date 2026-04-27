@@ -69,12 +69,11 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { createDeal, deleteCompany, getCompaniesPage, getCompanyFilterOptions, getFunnels, type CompanySortKey } from "@/services/crmService";
+import { createDeal, deleteCompany, getCompaniesPage, getCompanyFilterOptions, getDealStageOptions, getFunnels, type CompanySortKey } from "@/services/crmService";
 import { enrichCompaniesBulk } from "@/services/apolloService";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import type { BuyingSignal, Company, CompanyStatus } from "@/types";
-import { DEAL_STAGES } from "@/types";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { ColumnSelector, type ColumnOption } from '@/components/lists/ColumnSelector';
@@ -339,7 +338,7 @@ export default function Companies() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [dealDialogOpen, setDealDialogOpen] = useState(false);
   const [dealFunnelId, setDealFunnelId] = useState<string>("");
-  const [dealStage, setDealStage] = useState<string>(DEAL_STAGES[0]);
+  const [dealStage, setDealStage] = useState<string>("");
   const [visibleCompanyCols, setVisibleCompanyCols] = useState<string[]>(
     COMPANY_COLUMN_OPTIONS.filter((c) => c.defaultVisible !== false).map((c) => c.key),
   );
@@ -436,12 +435,23 @@ export default function Companies() {
     queryFn: getFunnels,
     enabled: dealDialogOpen,
   });
+  const { data: dealStages = [] } = useQuery({
+    queryKey: ["deal-stage-options", dealFunnelId],
+    queryFn: () => getDealStageOptions({ funnelId: dealFunnelId }),
+    enabled: dealDialogOpen && !!dealFunnelId,
+  });
 
   useEffect(() => {
     if (dealDialogOpen && !dealFunnelId && funnels.length > 0) {
       setDealFunnelId(funnels[0].id);
     }
   }, [dealDialogOpen, dealFunnelId, funnels]);
+
+  useEffect(() => {
+    if (!dealDialogOpen || dealStages.length === 0) return;
+    if (dealStages.some((stage) => stage.id === dealStage)) return;
+    setDealStage(dealStages[0].id);
+  }, [dealDialogOpen, dealStage, dealStages]);
 
   const selectedCompanies = companies.filter((c) => selectedIds.includes(c.id));
 
@@ -453,7 +463,7 @@ export default function Companies() {
           createDeal({
             title: `Negociação - ${company.name}`,
             value: company.vgv_projected ?? null,
-            stage_name: dealStage,
+            stage_id: dealStage || null,
             funnel_id: dealFunnelId || null,
             contact_id: null,
             company_id: company.id,
@@ -978,7 +988,10 @@ export default function Companies() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Funil</Label>
-              <Select value={dealFunnelId || "__none__"} onValueChange={(v) => setDealFunnelId(v === "__none__" ? "" : v)}>
+              <Select value={dealFunnelId || "__none__"} onValueChange={(v) => {
+                setDealFunnelId(v === "__none__" ? "" : v);
+                setDealStage("");
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um funil" />
                 </SelectTrigger>
@@ -992,13 +1005,14 @@ export default function Companies() {
             </div>
             <div className="space-y-1.5">
               <Label>Estágio inicial</Label>
-              <Select value={dealStage} onValueChange={setDealStage}>
+              <Select value={dealStage || "__none__"} onValueChange={(v) => setDealStage(v === "__none__" ? "" : v)} disabled={!dealFunnelId || dealStages.length === 0}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder={dealFunnelId ? "Selecione" : "Escolha o funil"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {DEAL_STAGES.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem value="__none__">— Sem estágio —</SelectItem>
+                  {dealStages.map((stage) => (
+                    <SelectItem key={stage.id} value={stage.id}>{stage.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
