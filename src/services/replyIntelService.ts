@@ -2,6 +2,18 @@ import { supabase } from '@/lib/supabase';
 import { returnEmptyOnOptionalSchema } from '@/lib/supabaseOptional';
 import type { ReplyClassification, SuppressionEntry, SuppressionReason } from '@/types';
 
+async function getCurrentAccountId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error('Usuário não autenticado.');
+  const metadata = {
+    ...(data.user.app_metadata ?? {}),
+    ...(data.user.user_metadata ?? {}),
+  } as Record<string, unknown>;
+  return typeof metadata.account_id === 'string' && metadata.account_id
+    ? metadata.account_id
+    : data.user.id;
+}
+
 // ── Reply Classification ──────────────────────────────────
 
 export interface ClassifiedActivity {
@@ -27,7 +39,7 @@ export async function getClassifiedActivities(
 ): Promise<ClassifiedActivity[]> {
   let query = supabase
     .from('activities')
-    .select('id, activity_type, body, reply_classification, classification_confidence, classified_at, classified_by, sentiment_score, parsed_return_date, created_at, contact_id, deal_id, contact:contacts!contact_id(id, name), deal:deals!deal_id(id, title)')
+    .select('id, activity_type:kind, body, reply_classification, classification_confidence, classified_at, classified_by, sentiment_score, parsed_return_date, created_at, contact_id, deal_id, contact:contacts!contact_id(id, name), deal:deals!deal_id(id, title)')
     .not('reply_classification', 'is', null)
     .order('classified_at', { ascending: false })
     .limit(limit);
@@ -44,7 +56,7 @@ export async function getClassifiedActivities(
 export async function getPendingClassifications(limit = 50): Promise<ClassifiedActivity[]> {
   const { data, error } = await supabase
     .from('activities')
-    .select('id, activity_type, body, reply_classification, classification_confidence, classified_at, classified_by, sentiment_score, parsed_return_date, created_at, contact_id, deal_id, contact:contacts!contact_id(id, name), deal:deals!deal_id(id, title)')
+    .select('id, activity_type:kind, body, reply_classification, classification_confidence, classified_at, classified_by, sentiment_score, parsed_return_date, created_at, contact_id, deal_id, contact:contacts!contact_id(id, name), deal:deals!deal_id(id, title)')
     .eq('direction', 'in')
     .is('classified_at', null)
     .order('created_at', { ascending: false })
@@ -87,9 +99,11 @@ export async function addToSuppression(
   reason: SuppressionReason,
   sourceActivityId?: string,
 ): Promise<void> {
+  const accountId = await getCurrentAccountId();
   const { error } = await supabase
     .from('suppression_list')
     .insert({
+      account_id: accountId,
       contact_id: contactId,
       wa_phone_e164: phone,
       reason,

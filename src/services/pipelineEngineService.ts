@@ -2,6 +2,18 @@ import { supabase } from '@/lib/supabase';
 import { returnEmptyOnOptionalSchema } from '@/lib/supabaseOptional';
 import type { DealContact, BuyingRole, DealStateSnapshot } from '@/types';
 
+async function getCurrentAccountId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error('Usuário não autenticado.');
+  const metadata = {
+    ...(data.user.app_metadata ?? {}),
+    ...(data.user.user_metadata ?? {}),
+  } as Record<string, unknown>;
+  return typeof metadata.account_id === 'string' && metadata.account_id
+    ? metadata.account_id
+    : data.user.id;
+}
+
 // ── Deal Contacts (Buying Committee) ──────────────────────
 
 export async function getDealContacts(dealId: string): Promise<DealContact[]> {
@@ -20,10 +32,16 @@ export async function addDealContact(
   contactId: string,
   buyingRole: BuyingRole,
 ): Promise<DealContact> {
+  const accountId = await getCurrentAccountId();
   const { data, error } = await supabase
     .from('deal_contacts')
     .upsert(
-      { deal_id: dealId, contact_id: contactId, buying_role: buyingRole },
+      {
+        account_id: accountId,
+        deal_id: dealId,
+        contact_id: contactId,
+        buying_role: buyingRole,
+      },
       { onConflict: 'deal_id,contact_id' },
     )
     .select('*, contact:contacts(id, name, role, email, whatsapp)')
