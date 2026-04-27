@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { returnEmptyOnOptionalSchema } from '@/lib/supabaseOptional';
 import type { DealContact, BuyingRole, DealStateSnapshot } from '@/types';
 
 // ── Deal Contacts (Buying Committee) ──────────────────────
@@ -10,7 +11,7 @@ export async function getDealContacts(dealId: string): Promise<DealContact[]> {
     .eq('deal_id', dealId)
     .is('removed_at', null)
     .order('added_at', { ascending: true });
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as unknown as DealContact[];
 }
 
@@ -62,7 +63,7 @@ export async function getDealSnapshots(
     .eq('deal_id', dealId)
     .order('snapshot_date', { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as DealStateSnapshot[];
 }
 
@@ -74,7 +75,7 @@ export async function getSnapshotsByDate(
     .select('*')
     .eq('snapshot_date', date)
     .order('value_brl', { ascending: false });
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as DealStateSnapshot[];
 }
 

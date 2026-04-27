@@ -23,6 +23,11 @@ import MensagensPage from "./pages/MensagensPage.tsx";
 import Reports from "./pages/Reports.tsx";
 import Settings from "./pages/Settings.tsx";
 import SequenceBuilderV2 from "./pages/SequenceBuilderV2.tsx";
+import RespostasParaRevisar from "./pages/RespostasParaRevisar.tsx";
+import ExtracoesParaRevisar from "./pages/ExtracoesParaRevisar.tsx";
+import PipelineCompare from "./pages/PipelineCompare.tsx";
+import ExtensaoSaude from "./pages/ExtensaoSaude.tsx";
+import DeliverabilityPage from "./pages/DeliverabilityPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -53,12 +58,19 @@ const App = () => (
               <Route path="/crm/negocios" element={<PipelinePage />} />
               <Route path="/crm/negocios/:id" element={<DealDetail />} />
 
+              {/* Intelligence */}
+              <Route path="/respostas-revisar" element={<RespostasParaRevisar />} />
+              <Route path="/extracoes" element={<ExtracoesParaRevisar />} />
+              <Route path="/pipeline/compare" element={<PipelineCompare />} />
+
               {/* Admin-only */}
               <Route element={<AdminRoute />}>
                 <Route path="/integracoes" element={<Integrations />} />
                 <Route path="/sequencias" element={<SequenciasPage />} />
                 <Route path="/sequencias-v2/nova" element={<SequenceBuilderV2 />} />
                 <Route path="/sequencias-v2/:id" element={<SequenceBuilderV2 />} />
+                <Route path="/extensao/saude" element={<ExtensaoSaude />} />
+                <Route path="/deliverability" element={<DeliverabilityPage />} />
               </Route>
             </Route>
 

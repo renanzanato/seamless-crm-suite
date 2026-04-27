@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { returnEmptyOnOptionalSchema } from '@/lib/supabaseOptional';
 import type { ReplyClassification, SuppressionEntry, SuppressionReason } from '@/types';
 
 // ── Reply Classification ──────────────────────────────────
@@ -36,7 +37,7 @@ export async function getClassifiedActivities(
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as unknown as ClassifiedActivity[];
 }
 
@@ -44,18 +45,18 @@ export async function getPendingClassifications(limit = 50): Promise<ClassifiedA
   const { data, error } = await supabase
     .from('activities')
     .select('id, activity_type, body, reply_classification, classification_confidence, classified_at, classified_by, sentiment_score, parsed_return_date, created_at, contact_id, deal_id, contact:contacts!contact_id(id, name), deal:deals!deal_id(id, title)')
-    .eq('direction', 'inbound')
+    .eq('direction', 'in')
     .is('classified_at', null)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as unknown as ClassifiedActivity[];
 }
 
 export async function overrideClassification(
   activityId: string,
   classification: ReplyClassification,
-  classifiedBy: string,
+  _classifiedBy: string,
 ): Promise<void> {
   const { error } = await supabase
     .from('activities')
@@ -76,7 +77,7 @@ export async function getSuppressionList(limit = 100): Promise<SuppressionEntry[
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, []);
   return (data ?? []) as SuppressionEntry[];
 }
 
@@ -110,6 +111,6 @@ export async function isContactSuppressed(contactId: string): Promise<boolean> {
     .from('suppression_list')
     .select('id', { count: 'exact', head: true })
     .eq('contact_id', contactId);
-  if (error) throw error;
+  if (error) return returnEmptyOnOptionalSchema(error, false);
   return (count ?? 0) > 0;
 }

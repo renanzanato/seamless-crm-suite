@@ -16,6 +16,11 @@ import {
   Workflow,
   BarChart3,
   MessageSquare,
+  Brain,
+  FileSearch,
+  ArrowLeftRight,
+  Monitor,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from '@tanstack/react-query';
@@ -50,6 +55,16 @@ const navSections: NavSection[] = [
       { title: "Empresas",  url: "/crm/empresas",  icon: Building2 },
       { title: "Pipeline",  url: "/crm/negocios",  icon: Briefcase },
       { title: "Relatorios", url: "/reports",       icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Inteligência',
+    items: [
+      { title: "Respostas",     url: "/respostas-revisar", icon: Brain },
+      { title: "Extrações",     url: "/extracoes",          icon: FileSearch },
+      { title: "Pipeline Compare", url: "/pipeline/compare", icon: ArrowLeftRight },
+      { title: "Extensão",      url: "/extensao/saude",     icon: Monitor, adminOnly: true },
+      { title: "Deliverability", url: "/deliverability",     icon: Shield, adminOnly: true },
     ],
   },
   {
