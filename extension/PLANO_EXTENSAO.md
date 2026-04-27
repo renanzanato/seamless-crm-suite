@@ -156,58 +156,87 @@ Para reduzir preflight desnecessario, o background nao envia header customizado 
 
 O botao da aba IA envia texto por `window.WPP.chat.sendTextMessage` atraves da bridge `SEND_TEXT_MESSAGE`. O caminho antigo por `contenteditable`, `document.execCommand` e clique no botao nativo foi removido para reduzir fragilidade de DOM.
 
-### 3.11 Heartbeat e self-check
+### 3.11 Heartbeat e telemetria
 
-- A extensao envia `POST /extension/heartbeat` a cada 60s.
-- Payload: `{ protocol_version, extension_version, account_hash (sha256 do numero logado), active_chat_id_hash, queue_length, last_sync_at, selectors_ok }`.
-- Self-check ao boot valida presenca de `window.WPP`, `#pane-side`, `#main`, e cada seletor critico de `selectors.ts`. Se algum falha: dispara evento `selector_missing` na telemetria e mostra alerta no popup ANTES do primeiro espelhamento.
-- CRM expoe status verde/amarelo/vermelho da extensao por usuario consumindo o heartbeat.
+- A extensao envia `POST /extension-heartbeat` a cada 30s com jitter de ate 2s.
+- Payload minimo: `{ ext_version, protocol_version, wpp_version, account_hash, queue_depth, last_error, state }`.
+- `state` aceita `healthy`, `degraded`, `passive` ou `offline`.
+- O CRM responde `{ server_time, kill_switch_active, config_revision }`.
+- Eventos estruturados vao em batch para `POST /extension-telemetry`: `boot_ok`, `boot_failed`, `wpp_ready`, `wpp_timeout`, `selector_missing`, `lookup_ok`, `lookup_denied`, `sync_ok`, `sync_failed`, `send_ok`, `send_failed`, `wa_quality_sample`, `openclaw_command_ok`, `openclaw_command_blocked`.
+- Todo evento carrega `account_hash`, `chat_hash` quando houver, `protocol_version`, `latency_ms`, `request_id`, `ts` e `payload` ja scrubado de PII.
 
-### 3.12 Fila persistente e retry
+### 3.12 Allowlist e account binding
 
-- Mensagem capturada vai para fila em IndexedDB (NAO `chrome.storage.local` - quota baixa).
-- Schema: `{ id (raw_id), payload, attempts, next_attempt_at, created_at }`.
-- Retry exponencial: 30s, 2min, 10min, 30min, 2h, 6h, 24h. Apos 24h marca como dead-letter.
-- Background drena a fila independente de novas capturas.
-- Idempotencia garantida por `raw_id` no servidor.
+- Envio externo so e permitido quando o contato existe no CRM e `contact_automation_settings.openclaw_authorized = true`.
+- A extensao calcula `account_hash` a partir do numero WhatsApp logado e compara com o `account_hash` esperado pelo CRM.
+- Mismatch de conta retorna `NO_ACCOUNT`, pausa envios, sinaliza heartbeat `degraded` e exige novo login no popup.
+- A allowlist e cacheada localmente com TTL curto e invalidada por `suppression_list_checksum` vindo de config remoto.
+- Default seguro: contato sem config explicita fica bloqueado para OpenClaw.
 
-### 3.13 Telemetria estruturada
+### 3.13 Rate limit client-side
 
-Eventos que a extensao emite:
+- Limites padrao por `account_hash`: 30/min, 200/h, 800/dia.
+- Nos primeiros 7 dias de uma conta nova, warmup padrao: 20/dia -> 40 -> 80 -> 200 -> 400 -> 800, promovido apenas com qualidade verde.
+- Excedeu limite: comando local retorna `RATE_LIMIT` com `Retry-After`; captura inbound continua funcionando.
+- Janela comercial usa timezone da conta/owner por enquanto e migra para timezone do contato quando disponivel.
+- Todo bloqueio emite telemetria `send_blocked_rate_limit` ou `send_blocked_window`.
 
-- `boot_ok`, `boot_failed`, `wpp_ready`, `wpp_timeout`
-- `selector_missing { selector_name }`
-- `lookup_ok`, `lookup_denied`, `lookup_error`
-- `sync_ok`, `sync_failed`, `sync_retry`
-- `send_ok`, `send_failed`, `send_blocked_rate_limit`, `send_blocked_window`
-- `protocol_version_mismatch`
-- `account_changed`
-- `whatsapp_verification_required`
+### 3.14 Taxonomia completa de mensagens
 
-Cada evento carrega: `chat_hash` (sha256 do `chat_id`), `protocol_version`, `latency_ms`, `ts`.
-Buffer local + envio batch via `POST /extension/telemetry` a cada 5min OU 50 eventos, o que vier primeiro.
+- A extensao mapeia os `MessageTypes` do WPPConnect para um payload polimorfico canonico com discriminator `payload.kind`.
+- Kinds minimos: `text`, `ptt`, `audio`, `image`, `video`, `sticker`, `document`, `vcard`, `location`, `reaction`, `quoted`, `forwarded`, `edit`, `delete`, `call_log`, `system`.
+- `raw_id` e obrigatorio em todos os eventos e segue o contrato de idempotencia documentado em `docs/CRM_BASIC_WAVES.md`.
+- Reaction, edit e delete nunca sobrescrevem a mensagem original; geram `raw_id` derivado e activity propria.
+- Tipos desconhecidos sao aceitos como `system` com payload bruto reduzido, nunca descartados silenciosamente.
 
-### 3.14 Rate limiting client-side
+### 3.15 Decryption de midia e transcricao PTT
 
-- Defaults: 30 envios/min, 200/h, 800/dia por conta WhatsApp.
-- Configuraveis via `GET /extension/config`.
-- Janela horaria do contato (timezone do contato se disponivel, fallback timezone do owner). Padrao 9h-18h dia util BR.
-- Jitter humano entre envios consecutivos: 8-25s aleatorio.
-- Excedeu? Envio e enfileirado para proxima janela valida, nao rejeitado.
+- Midia capturada pelo WPP deve ser descriptografada localmente quando as chaves estiverem disponiveis.
+- Validacao criptografica obrigatoria: AES-CBC para conteudo e HMAC-SHA256 antes de confiar no blob.
+- Arquivos executaveis sao bloqueados: `.exe`, `.bat`, `.cmd`, `.scr`, `.vbs`, `.ps1`, `.msi`.
+- `ptt` pode chamar `/transcribe-audio`; transcript entra em `payload.transcript` com `transcribed_at`.
+- PII e conteudo pesado nao entram em telemetria; apenas metadados, hashes, mime, tamanho e status.
 
-### 3.15 API local para automacao externa (OpenClaw)
+### 3.16 Backpressure, watchdog WPP e badge UI
 
-- Mecanismo: Chrome Native Messaging Host registrado como `com.pipa.bridge`. Sem porta TCP exposta.
-- Token rotativo de 256 bits gravado em `~/.pipa/token` (lido por OpenClaw, regenerado a cada boot da extensao).
-- Comandos expostos:
-  - `extension.getStatus()` -> `{ protocol_version, account_hash, active_chat_id_hash, queue_length }`
-  - `extension.listChats()` -> `[{ chat_id, title }]` (sem mensagens)
-  - `extension.openChat({ chat_id })`
-  - `extension.getRecentMessages({ chat_id, limit })` -> ultimas N do que ja foi capturado
-  - `extension.sendMessage({ chat_id, body, idempotency_key })` -> `{ message_id } | { error }`
-  - `extension.dryRunSend({ chat_id, body })` -> `{ rendered_body, rate_limit_ok, window_ok, account_ok }`
-- Toda chamada exige header `X-Pipa-Token`. Toda chamada loga activity no CRM com `actor = "openclaw"`.
-- Kill switch: toggle `block_external_commands` no popup. CRM seta remoto via `/extension/config`. Ligado -> todos os comandos retornam 403.
+- Fila local usa IndexedDB, nunca `chrome.storage.local`, com retry e dead-letter.
+- Se `queue_depth > 200`, a extensao entra em backpressure: badge vermelho, pausa novos envios externos e continua drenando.
+- Se `window.WPP` ficar ausente ou `not_ready` por mais de 60s, watchdog marca `degraded`, pausa envios e emite `wpp_timeout`.
+- Popup exibe estado sintetico: conta, WPP, fila, ultimo erro, modo passivo, kill switch e comandos externos.
+- Falha de telemetria nunca bloqueia captura nem envio permitido.
+
+### 3.17 Remote config e suppression sync
+
+- `GET /extension-config` retorna selector pack, checksum, rate limits, business hours, kill switch, passive mode e `suppression_list_checksum`.
+- A extensao valida checksum do selector pack antes de ativar; se falhar, usa ultimo pack valido.
+- Config e rebaixada com TTL curto e invalidacao por `config_revision` no heartbeat.
+- Mudanca de suppression checksum forca refresh da lista local antes do proximo envio.
+- Remote config nunca libera envio se a allowlist local/CRM disser bloqueado.
+
+### 3.18 PII guard em telemetria
+
+- Telemetria enviada ao CRM passa por scrubber local que remove telefone, email, CPF, CNPJ e trechos longos de mensagem.
+- Logs locais de debug podem manter PII apenas quando modo debug explicito estiver ativo.
+- Campos permitidos em telemetria: hashes, contadores, eventos, codigos de erro, latencia, versoes e flags operacionais.
+- O servidor tambem scrubba PII como defesa em profundidade.
+- Qualquer evento com payload bruto de mensagem deve ser rejeitado no cliente antes do envio.
+
+### 3.19 Native Messaging Host (`com.pipa.bridge`)
+
+- OpenClaw conversa com a extensao via Chrome Native Messaging Host registrado como `com.pipa.bridge`.
+- Nao ha porta TCP exposta.
+- Protocolo usa mensagens JSON com prefixo de tamanho de 4 bytes, padrao Native Messaging do Chrome.
+- Comandos locais minimos: `getStatus`, `sendMessage`, `sendReaction`, `listChats`.
+- Toda chamada exige `x-pipa-token` rotativo de 256 bits, comparado em tempo constante.
+- Toda acao externa registra activity/audit com `actor = "openclaw"` e `idempotency_key`.
+
+### 3.20 Modo passivo e kill switch global
+
+- `passive_mode` captura e valida, mas nao envia para WhatsApp nem para automacao externa.
+- `kill_switch` vindo do CRM bloqueia todos os comandos externos em ate 30s.
+- Popup tem toggle local de bloqueio externo e mostra quando a origem do bloqueio e remota.
+- Kill switch retorna `BLOCKED` com motivo estruturado; nao deve falhar como erro generico.
+- Runbook de incidente deve cobrir: extensao caiu, WhatsApp pediu verificacao, numero logado mudou, OpenClaw enviou errado.
 
 ---
 
@@ -283,15 +312,15 @@ Payload principal:
 
 ### Heartbeat
 
-`POST /extension/heartbeat` - payload conforme 3.11. Resposta 200 com `{ ok: true, config_revision }`.
+`POST /extension-heartbeat` - payload conforme 3.11. Resposta 200 com `{ server_time, kill_switch_active, config_revision }`.
 
 ### Telemetria
 
-`POST /extension/telemetry` - body `{ events: [...] }`. Resposta 200 vazia.
+`POST /extension-telemetry` - body `{ events: [...] }`. Resposta 204 vazia.
 
 ### Configuracao remota
 
-`GET /extension/config` - retorna `{ protocol_min_version, rate_limits, business_window, block_external_commands, kill_switch_reason }`.
+`GET /extension-config` - retorna `{ selectors, selectors_checksum, rate_limits, kill_switch, passive_mode, business_hours, suppression_list_checksum }`.
 
 ---
 
