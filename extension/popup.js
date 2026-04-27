@@ -20,9 +20,40 @@ let refreshTimer = null;
 let lastSettingsJson = "";
 
 function sendRuntimeMessage(message) {
-  return chrome.runtime
-    .sendMessage(message)
-    .catch((error) => ({ ok: false, error: error?.message || String(error) }));
+  const runtime = globalThis.chrome?.runtime;
+  if (!runtime?.sendMessage) {
+    return Promise.resolve({
+      ok: false,
+      error: "Contexto da extensão indisponível. Abra pelo popup da extensão instalada no Chrome.",
+    });
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value || { ok: false, error: "Resposta vazia do service worker." });
+    };
+
+    try {
+      const maybePromise = runtime.sendMessage(message, (response) => {
+        if (runtime.lastError) {
+          finish({ ok: false, error: runtime.lastError.message });
+          return;
+        }
+        finish(response);
+      });
+
+      if (maybePromise?.then) {
+        maybePromise.then(finish).catch((error) => {
+          finish({ ok: false, error: error?.message || String(error) });
+        });
+      }
+    } catch (error) {
+      finish({ ok: false, error: error?.message || String(error) });
+    }
+  });
 }
 
 function setLoginError(message) {
